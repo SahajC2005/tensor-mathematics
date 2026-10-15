@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCA vs. SVD — The Subtle Mismatch</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --paper: #f6f2eb;
+    --accent: #c0392b;
+    --accent-light: #e74c3c;
+    --blue: #2471a3;
+    --blue-light: #d4e6f1;
+    --green: #1e8449;
+    --green-light: #d5f5e3;
+    --red-light: #fadbd8;
+    --gray: #7f8c8d;
+    --gray-light: #ecf0f1;
+    --code-bg: #2d2d2d;
+    --code-fg: #f8f8f2;
+    --serif: 'Source Serif 4', Georgia, serif;
+    --display: 'DM Serif Display', Georgia, serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--serif);
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 18px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* --- HERO --- */
+  .hero {
+    padding: 80px 40px 60px;
+    max-width: 820px;
+    margin: 0 auto;
+    border-bottom: 3px solid var(--ink);
+  }
+
+  .hero-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  .hero h1 {
+    font-family: var(--display);
+    font-size: clamp(36px, 6vw, 58px);
+    line-height: 1.15;
+    margin-bottom: 24px;
+    font-weight: 400;
+  }
+
+  .hero h1 em {
+    color: var(--accent);
+    font-style: italic;
+  }
+
+  .hero-subtitle {
+    font-size: 20px;
+    color: var(--gray);
+    max-width: 600px;
+    font-weight: 300;
+  }
+
+  /* --- CONTENT --- */
+  .content {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+
+  section {
+    padding: 56px 0;
+    border-bottom: 1px solid #d5cfc5;
+  }
+
+  section:last-of-type { border-bottom: none; }
+
+  h2 {
+    font-family: var(--display);
+    font-size: 30px;
+    margin-bottom: 24px;
+    font-weight: 400;
+  }
+
+  h2 .step-num {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 6px;
+    letter-spacing: 2px;
+  }
+
+  p { margin-bottom: 18px; }
+
+  strong { font-weight: 600; }
+
+  /* --- COMPARISON CARDS --- */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin: 32px 0;
+  }
+
+  @media (max-width: 640px) {
+    .compare-grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    border-radius: 12px;
+    padding: 32px 28px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 4px;
+    height: 100%;
+  }
+
+  .card-svd {
+    background: var(--blue-light);
+  }
+
+  .card-svd::before { background: var(--blue); }
+
+  .card-pca {
+    background: var(--green-light);
+  }
+
+  .card-pca::before { background: var(--green); }
+
+  .card-label {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .card-svd .card-label { color: var(--blue); }
+  .card-pca .card-label { color: var(--green); }
+
+  .card h3 {
+    font-family: var(--display);
+    font-size: 22px;
+    margin-bottom: 14px;
+    font-weight: 400;
+  }
+
+  .card p {
+    font-size: 16px;
+    line-height: 1.65;
+    margin-bottom: 0;
+  }
+
+  /* --- MATH BLOCKS --- */
+  .math-block {
+    background: white;
+    border: 1px solid #d5cfc5;
+    border-radius: 10px;
+    padding: 28px 32px;
+    margin: 28px 0;
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 2;
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .math-block .math-label {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    font-size: 11px;
+    color: var(--gray);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .math-line {
+    display: block;
+    padding: 2px 0;
+  }
+
+  .math-comment {
+    color: var(--gray);
+    font-size: 13px;
+  }
+
+  .math-highlight {
+    background: #fef9e7;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #f9e79f;
+  }
+
+  /* --- VISUAL DIAGRAM --- */
+  .diagram-container {
+    margin: 36px 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+
+  @media (max-width: 640px) {
+    .diagram-container { grid-template-columns: 1fr; }
+  }
+
+  .diagram-panel {
+    text-align: center;
+    padding: 28px 20px;
+    border-radius: 12px;
+    background: white;
+    border: 1px solid #d5cfc5;
+  }
+
+  .diagram-panel h4 {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .diagram-panel svg {
+    display: block;
+    margin: 0 auto;
+  }
+
+  .diagram-caption {
+    font-size: 14px;
+    color: var(--gray);
+    margin-top: 16px;
+    line-height: 1.5;
+  }
+
+  /* --- ANALOGY BOX --- */
+  .analogy-box {
+    background: #fdf2e9;
+    border-left: 4px solid #e67e22;
+    border-radius: 0 10px 10px 0;
+    padding: 28px 32px;
+    margin: 32px 0;
+  }
+
+  .analogy-box .analogy-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #e67e22;
+    margin-bottom: 12px;
+  }
+
+  /* --- CODE BLOCK --- */
+  .code-block {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    border-radius: 10px;
+    padding: 28px 28px;
+    margin: 28px 0;
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.8;
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .code-block .code-lang {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .code-comment { color: #75715e; }
+  .code-keyword { color: #f92672; }
+  .code-func { color: #a6e22e; }
+  .code-string { color: #e6db74; }
+  .code-var { color: #66d9ef; }
+
+  /* --- VERDICT --- */
+  .verdict {
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 12px;
+    padding: 40px 36px;
+    margin: 36px 0;
+  }
+
+  .verdict h3 {
+    font-family: var(--display);
+    font-size: 26px;
+    margin-bottom: 18px;
+    color: #f0e6d3;
+  }
+
+  .verdict p {
+    font-size: 17px;
+    line-height: 1.7;
+    color: #bbb;
+  }
+
+  .verdict strong { color: #fff; }
+
+  .verdict-table {
+    width: 100%;
+    margin-top: 24px;
+    border-collapse: collapse;
+    font-size: 15px;
+  }
+
+  .verdict-table th {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #888;
+    text-align: left;
+    padding: 10px 16px;
+    border-bottom: 1px solid #444;
+  }
+
+  .verdict-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #333;
+    color: #ccc;
+  }
+
+  .verdict-table td:first-child {
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+
+  .tag-svd { background: rgba(36, 113, 163, 0.3); color: #5dade2; }
+  .tag-pca { background: rgba(30, 132, 73, 0.3); color: #58d68d; }
+  .tag-either { background: rgba(255,255,255,0.1); color: #aaa; }
+
+  /* --- FOOTER --- */
+  footer {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 40px 40px 60px;
+    font-size: 14px;
+    color: var(--gray);
+    border-top: 1px solid #d5cfc5;
+  }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  section { animation: fadeUp 0.5s ease-out both; }
+  section:nth-child(2) { animation-delay: 0.05s; }
+  section:nth-child(3) { animation-delay: 0.1s; }
+  section:nth-child(4) { animation-delay: 0.15s; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-label">Dictionary Learning · Foundations</div>
+  <h1>PCA vs. SVD: The <em>Subtle Mismatch</em></h1>
+  <p class="hero-subtitle">
+    They're often used interchangeably. They shouldn't be. Here's what actually differs — and when it matters.
+  </p>
+</header>
+
+<main class="content">
+
+  <!-- =================== SECTION 1 =================== -->
+  <section>
+    <h2><span class="step-num">01 — The Problem</span>What people get wrong</h2>
+    <p>
+      In dictionary learning, you'll often see a step described as <strong>"apply PCA to the dictionary."</strong> 
+      The code then calls a truncated SVD. The author treats them as synonyms. They aren't.
+    </p>
+    <p>
+      The two operations ask <em>fundamentally different geometric questions</em> about your data. Most of the time 
+      the difference is small. But when it's not small, it fails silently — your components capture the wrong thing, 
+      and nothing throws an error.
+    </p>
+  </section>
+
+  <!-- =================== SECTION 2 =================== -->
+  <section>
+    <h2><span class="step-num">02 — Side by Side</span>What each operation actually does</h2>
+
+    <div class="compare-grid">
+      <div class="card card-svd">
+        <div class="card-label">Truncated SVD</div>
+        <h3>Factorize directly</h3>
+        <p>
+          Take your dictionary matrix <strong>D</strong> and decompose it as-is. 
+          No preprocessing. The singular vectors point toward directions of 
+          <strong>maximum magnitude from the origin</strong>.
+        </p>
+      </div>
+      <div class="card card-pca">
+        <div class="card-label">PCA</div>
+        <h3>Center, then factorize</h3>
+        <p>
+          First compute the mean atom <strong>d̄</strong> and subtract it from every column. 
+          Then do SVD on the centered matrix. The components point toward directions of 
+          <strong>maximum variance around the mean</strong>.
+        </p>
+      </div>
+    </div>
+
+    <div class="math-block">
+      <span class="math-label">The math</span>
+      <span class="math-line"><strong>Truncated SVD:</strong></span>
+      <span class="math-line">&nbsp;&nbsp;D = UΣV<sup>⊤</sup> &nbsp;&nbsp;<span class="math-comment">← applied directly to D</span></span>
+      <br>
+      <span class="math-line"><strong>PCA:</strong></span>
+      <span class="math-line">&nbsp;&nbsp;d̄ = (1/n) Σ d<sub>i</sub> &nbsp;&nbsp;<span class="math-comment">← compute the mean atom</span></span>
+      <span class="math-line">&nbsp;&nbsp;D̃ = D − d̄·𝟏<sup>⊤</sup> &nbsp;&nbsp;<span class="math-comment">← subtract mean from every column</span></span>
+      <span class="math-line">&nbsp;&nbsp;<span class="math-highlight">D̃ = UΣV<sup>⊤</sup></span> &nbsp;&nbsp;<span class="math-comment">← SVD on the <em>centered</em> matrix</span></span>
+    </div>
+
+    <p>
+      That one line of subtraction — <strong>D̃ = D − d̄·𝟏<sup>⊤</sup></strong> — is the entire difference. 
+      Everything downstream changes because of it.
+    </p>
+  </section>
+
+  <!-- =================== SECTION 3 =================== -->
+  <section>
+    <h2><span class="step-num">03 — Visually</span>Why centering changes everything</h2>
+
+    <div class="diagram-container">
+      <div class="diagram-panel">
+        <h4 style="color: var(--blue);">SVD (no centering)</h4>
+        <svg width="220" height="220" viewBox="0 0 220 220">
+          <!-- axes -->
+          <line x1="30" y1="190" x2="200" y2="190" stroke="#ccc" stroke-width="1"/>
+          <line x1="30" y1="190" x2="30" y2="20" stroke="#ccc" stroke-width="1"/>
+          <!-- data cloud offset from origin -->
+          <circle cx="140" cy="70" r="4" fill="var(--blue)" opacity="0.5"/>
+          <circle cx="155" cy="60" r="4" fill="var(--blue)" opacity="0.5"/>
+          <circle cx="130" cy="80" r="4" fill="var(--blue)" opacity="0.5"/>
+          <circle cx="148" cy="55" r="4" fill="var(--blue)" opacity="0.5"/>
+          <circle cx="160" cy="75" r="4" fill="var(--blue)" opacity="0.5"/>
+          <circle cx="135" cy="65" r="4" fill="var(--blue)" opacity="0.5"/>
+          <circle cx="150" cy="85" r="4" fill="var(--blue)" opacity="0.5"/>
+          <circle cx="145" cy="50" r="4" fill="var(--blue)" opacity="0.5"/>
+          <circle cx="125" cy="72" r="4" fill="var(--blue)" opacity="0.5"/>
+          <circle cx="158" cy="68" r="4" fill="var(--blue)" opacity="0.5"/>
+          <!-- origin -->
+          <circle cx="30" cy="190" r="5" fill="var(--accent)" stroke="white" stroke-width="2"/>
+          <text x="38" y="185" font-family="IBM Plex Mono" font-size="11" fill="var(--accent)">origin</text>
+          <!-- first singular vector from origin -->
+          <line x1="30" y1="190" x2="165" y2="55" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="6,4"/>
+          <polygon points="165,55 155,62 160,52" fill="var(--accent)"/>
+          <text x="70" y="145" font-family="IBM Plex Mono" font-size="11" fill="var(--accent)" transform="rotate(-37, 70, 145)">v₁ → bulk offset</text>
+        </svg>
+        <p class="diagram-caption">
+          The first component points from the <strong>origin</strong> toward the data cloud. 
+          It captures the <em>shared bias</em>, not the spread.
+        </p>
+      </div>
+
+      <div class="diagram-panel">
+        <h4 style="color: var(--green);">PCA (with centering)</h4>
+        <svg width="220" height="220" viewBox="0 0 220 220">
+          <!-- axes -->
+          <line x1="30" y1="190" x2="200" y2="190" stroke="#ccc" stroke-width="1"/>
+          <line x1="30" y1="190" x2="30" y2="20" stroke="#ccc" stroke-width="1"/>
+          <!-- centered data cloud around center of plot -->
+          <circle cx="105" cy="105" r="4" fill="var(--green)" opacity="0.5"/>
+          <circle cx="125" cy="80" r="4" fill="var(--green)" opacity="0.5"/>
+          <circle cx="90" cy="120" r="4" fill="var(--green)" opacity="0.5"/>
+          <circle cx="118" cy="75" r="4" fill="var(--green)" opacity="0.5"/>
+          <circle cx="130" cy="100" r="4" fill="var(--green)" opacity="0.5"/>
+          <circle cx="95" cy="95" r="4" fill="var(--green)" opacity="0.5"/>
+          <circle cx="115" cy="125" r="4" fill="var(--green)" opacity="0.5"/>
+          <circle cx="120" cy="70" r="4" fill="var(--green)" opacity="0.5"/>
+          <circle cx="85" cy="108" r="4" fill="var(--green)" opacity="0.5"/>
+          <circle cx="128" cy="92" r="4" fill="var(--green)" opacity="0.5"/>
+          <!-- mean point -->
+          <circle cx="110" cy="97" r="6" fill="var(--green)" stroke="white" stroke-width="2"/>
+          <text x="118" y="94" font-family="IBM Plex Mono" font-size="11" fill="var(--green)">mean</text>
+          <!-- first PC through the spread -->
+          <line x1="72" y1="130" x2="148" y2="64" stroke="var(--green)" stroke-width="2.5"/>
+          <polygon points="148,64 138,71 143,61" fill="var(--green)"/>
+          <text x="138" y="56" font-family="IBM Plex Mono" font-size="11" fill="var(--green)">PC₁</text>
+          <!-- second PC -->
+          <line x1="82" y1="72" x2="138" y2="122" stroke="var(--green)" stroke-width="1.5" opacity="0.4"/>
+          <text x="140" y="128" font-family="IBM Plex Mono" font-size="11" fill="var(--green)" opacity="0.5">PC₂</text>
+        </svg>
+        <p class="diagram-caption">
+          After centering, the first component captures the <strong>direction of greatest spread</strong> — 
+          how atoms actually differ from each other.
+        </p>
+      </div>
+    </div>
+
+    <p>
+      This is the key geometric insight. SVD measures directions from the <strong>origin</strong>. 
+      PCA measures directions from the <strong>center of mass</strong>. If your data doesn't sit near the origin, 
+      these two answers can be very different.
+    </p>
+  </section>
+
+  <!-- =================== SECTION 4 =================== -->
+  <section>
+    <h2><span class="step-num">04 — Intuition</span>A real-world analogy</h2>
+
+    <div class="analogy-box">
+      <div class="analogy-label">Analogy — Measuring Heights</div>
+      <p>
+        You're studying height variation in a room of 50 people.
+      </p>
+      <p>
+        <strong>SVD approach:</strong> Your first component discovers "people are about 170 cm tall." 
+        Technically correct, but you already knew that. You've spent your most powerful component 
+        on the obvious.
+      </p>
+      <p>
+        <strong>PCA approach:</strong> You first record that the average height is 170 cm, then subtract it. 
+        Now your first component captures <em>who's taller, who's shorter, and by how much</em> — the 
+        actual structure you care about.
+      </p>
+    </div>
+
+    <p>
+      In dictionary learning, the "average height" is the <strong>mean dictionary atom</strong> — a shared 
+      background pattern present in most atoms. SVD's first singular vector wastes capacity 
+      representing this shared pattern. PCA factors it out first, so every component captures 
+      genuine variation between atoms.
+    </p>
+  </section>
+
+  <!-- =================== SECTION 5 =================== -->
+  <section>
+    <h2><span class="step-num">05 — In Code</span>Spotting the mistake</h2>
+
+    <div class="code-block">
+      <span class="code-lang">Python</span>
+<span class="code-comment"># ❌ What people often write (this is truncated SVD, NOT PCA)</span>
+U, S, Vt = np.linalg.svd(D, full_matrices=<span class="code-keyword">False</span>)
+D_reduced = U[:, :k] @ np.diag(S[:k])
+
+<span class="code-comment"># ✅ Actual PCA — center first, THEN decompose</span>
+<span class="code-var">d_mean</span> = D.mean(axis=<span class="code-keyword">1</span>, keepdims=<span class="code-keyword">True</span>)   <span class="code-comment"># mean atom</span>
+<span class="code-var">D_centered</span> = D - d_mean                    <span class="code-comment"># subtract the mean</span>
+U, S, Vt = np.linalg.svd(D_centered, full_matrices=<span class="code-keyword">False</span>)
+D_reduced = U[:, :k] @ np.diag(S[:k])       <span class="code-comment"># now these are true PCs</span>
+
+<span class="code-comment"># To reconstruct: add the mean back</span>
+<span class="code-var">D_reconstructed</span> = D_reduced @ Vt[:k, :] + d_mean
+    </div>
+
+    <p>
+      The fix is one line of code. But if you skip it, you're solving a different problem 
+      than the one you intended — and nothing in your pipeline will warn you.
+    </p>
+  </section>
+
+  <!-- =================== SECTION 6 =================== -->
+  <section>
+    <h2><span class="step-num">06 — The Exception</span>When it doesn't matter</h2>
+
+    <p>
+      If your dictionary atoms are already <strong>approximately zero-mean</strong> — meaning the columns 
+      of <strong>D</strong> average to roughly zero — then subtracting the mean changes almost nothing. 
+      In that case SVD ≈ PCA, and the distinction is academic.
+    </p>
+    <p>
+      This sometimes happens naturally: certain initialization schemes, normalization steps, 
+      or training dynamics can push atoms toward zero mean. That's why people get away with the 
+      conflation for years without noticing a problem. But "usually fine" is not the same as "equivalent."
+    </p>
+  </section>
+
+  <!-- =================== SECTION 7 =================== -->
+  <section>
+    <h2><span class="step-num">07 — Summary</span>Decision guide</h2>
+
+    <div class="verdict">
+      <h3>When to use which</h3>
+      <p>
+        The choice depends on what question you're asking about your dictionary.
+      </p>
+      <table class="verdict-table">
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>Use</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Understand how atoms differ from each other</td>
+            <td><span class="tag tag-pca">PCA</span></td>
+            <td>You want variance, not magnitude</td>
+          </tr>
+          <tr>
+            <td>Best rank-k approximation of D</td>
+            <td><span class="tag tag-svd">SVD</span></td>
+            <td>Eckart–Young theorem applies to the raw matrix</td>
+          </tr>
+          <tr>
+            <td>Dimensionality reduction for downstream ML</td>
+            <td><span class="tag tag-pca">PCA</span></td>
+            <td>Centered features are standard practice</td>
+          </tr>
+          <tr>
+            <td>Dictionary is already zero-mean</td>
+            <td><span class="tag tag-either">Either</span></td>
+            <td>The operations converge when d̄ ≈ 0</td>
+          </tr>
+          <tr>
+            <td>Sparse coding / reconstruction</td>
+            <td><span class="tag tag-svd">SVD</span></td>
+            <td>You need to reconstruct signals, not analyze variance</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      The bottom line: <strong>be explicit about which operation you mean and why.</strong> 
+      If your paper says "PCA" but your code does bare SVD, at minimum check whether the 
+      dictionary is zero-mean. If it isn't, you're capturing the wrong structure — and 
+      the silent nature of this bug makes it especially dangerous.
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  PCA vs. SVD in Dictionary Learning — A visual explainer.
+</footer>
+
+</body>
+</html>

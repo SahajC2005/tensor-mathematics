@@ -1,0 +1,162 @@
+{
+  "profiles": {
+    "Balanced": [
+      0.4,
+      0.3,
+      0.15,
+      0.15
+    ],
+    "Quality": [
+      0.6,
+      0.2,
+      0.1,
+      0.1
+    ],
+    "Compression": [
+      0.25,
+      0.55,
+      0.1,
+      0.1
+    ],
+    "Realtime": [
+      0.3,
+      0.2,
+      0.4,
+      0.1
+    ]
+  },
+  "rows": [
+    {
+      "name": "Tucker",
+      "psnr": 32.15679489137442,
+      "psnr_std": 0.09288815979748961,
+      "params": 153,
+      "fit_time": 0.4064690589904785,
+      "axes": {
+        "accuracy": 1.0,
+        "param_eff": 1.0,
+        "speed": 1.0,
+        "robustness": 0.2829557051838881
+      },
+      "E": 14.72,
+      "pareto": true,
+      "composites": {
+        "Balanced": 0.8924433557775832,
+        "Quality": 0.9282955705183888,
+        "Compression": 0.9282955705183888,
+        "Realtime": 0.9282955705183888
+      },
+      "tier_balanced": "S"
+    },
+    {
+      "name": "CP",
+      "psnr": 31.711196089343126,
+      "psnr_std": 0.10911325463538606,
+      "params": 1900,
+      "fit_time": 2.9448972225189207,
+      "axes": {
+        "accuracy": 0.6710665544953932,
+        "param_eff": 0.47867289515309547,
+        "speed": 0.11641793111270929,
+        "robustness": 0.0
+      },
+      "E": 9.67,
+      "pareto": false,
+      "composites": {
+        "Balanced": 0.42949118001099235,
+        "Quality": 0.510016304839126,
+        "Compression": 0.4426785240693218,
+        "Realtime": 0.34362171782432077
+      },
+      "tier_balanced": "C"
+    },
+    {
+      "name": "TT",
+      "psnr": 31.281426527052616,
+      "psnr_std": 0.06809614579771649,
+      "params": 5400,
+      "fit_time": 1.5252585887908936,
+      "axes": {
+        "accuracy": 0.3538179841383821,
+        "param_eff": 0.26251067227244496,
+        "speed": 0.4099649501169615,
+        "robustness": 0.7153132275479374
+      },
+      "E": 8.38,
+      "pareto": false,
+      "composites": {
+        "Balanced": 0.3890721219868212,
+        "Quality": 0.37732074270400817,
+        "Compression": 0.34536318355093015,
+        "Realtime": 0.394164832497582
+      },
+      "tier_balanced": "C"
+    },
+    {
+      "name": "BTD",
+      "psnr": 31.37623117605987,
+      "psnr_std": 0.06083238277501294,
+      "params": 4600,
+      "fit_time": 3.8228441715240478,
+      "axes": {
+        "accuracy": 0.4238011611704007,
+        "param_eff": 0.29569260452661766,
+        "speed": 0.0,
+        "robustness": 0.8419888007209939
+      },
+      "E": 8.57,
+      "pareto": false,
+      "composites": {
+        "Balanced": 0.3845265659342947,
+        "Quality": 0.3976180976796634,
+        "Compression": 0.3527801028543393,
+        "Realtime": 0.2704777493285431
+      },
+      "tier_balanced": "C"
+    },
+    {
+      "name": "TR",
+      "psnr": 31.30722932823152,
+      "psnr_std": 0.09365643691689668,
+      "params": 7600,
+      "fit_time": 1.5972966194152831,
+      "axes": {
+        "accuracy": 0.37286517245387396,
+        "param_eff": 0.1917877429278214,
+        "speed": 0.38937430352835406,
+        "robustness": 0.26955742330816523
+      },
+      "E": 8.07,
+      "pareto": false,
+      "composites": {
+        "Balanced": 0.3055221508853739,
+        "Quality": 0.3279698247415406,
+        "Compression": 0.2645927244074222,
+        "Realtime": 0.33292256406388465
+      },
+      "tier_balanced": "C"
+    },
+    {
+      "name": "Vectorized",
+      "psnr": 30.802117195563607,
+      "psnr_std": 0.051771789025593776,
+      "params": 19200,
+      "fit_time": 1.16514310836792,
+      "axes": {
+        "accuracy": 0.0,
+        "param_eff": 0.0,
+        "speed": 0.5301304759314764,
+        "robustness": 1.0
+      },
+      "E": 7.19,
+      "pareto": false,
+      "composites": {
+        "Balanced": 0.22951957138972146,
+        "Quality": 0.15301304759314766,
+        "Compression": 0.15301304759314766,
+        "Realtime": 0.3120521903725906
+      },
+      "tier_balanced": "D"
+    }
+  ]
+}

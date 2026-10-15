@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tensor Dictionary Learning — A Visual Primer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;600&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #1a1814;
+  --paper: #f4efe6;
+  --paper-deep: #ebe4d4;
+  --rule: #2a2620;
+  --accent: #c73e1d;
+  --accent-soft: #e8a89a;
+  --muted: #6b6354;
+  --code-bg: #efe7d3;
+  --grid: rgba(26,24,20,0.06);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter Tight', sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.55;
+  font-size: 17px;
+  background-image:
+    radial-gradient(circle at 1px 1px, var(--grid) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+.serif { font-family: 'Fraunces', serif; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* ---------- TOP RULE ---------- */
+.topbar {
+  border-bottom: 1px solid var(--rule);
+  padding: 14px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--paper);
+}
+.topbar .vol { color: var(--muted); }
+
+/* ---------- HERO ---------- */
+.hero {
+  padding: 80px 40px 60px;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  border-bottom: 2px solid var(--rule);
+  align-items: end;
+}
+
+.hero-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hero-label::before {
+  content: '';
+  width: 32px;
+  height: 1px;
+  background: var(--accent);
+}
+
+.hero h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(48px, 7vw, 96px);
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+  font-variation-settings: "opsz" 144;
+}
+.hero h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--accent);
+}
+.hero h1 .strike {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: var(--accent);
+  color: var(--muted);
+}
+
+.hero-right { padding-bottom: 12px; }
+.hero-right p {
+  font-family: 'Fraunces', serif;
+  font-size: 19px;
+  line-height: 1.55;
+  font-weight: 300;
+  color: var(--ink);
+  margin-bottom: 20px;
+}
+.hero-right p em { color: var(--accent); font-style: italic; }
+
+.hero-meta {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--rule);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.hero-meta div span {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 4px;
+  font-size: 10px;
+}
+
+/* ---------- SECTIONS ---------- */
+section {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 80px 40px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.section-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: clamp(32px, 4vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin-bottom: 40px;
+  max-width: 900px;
+}
+.section-title em { font-style: italic; color: var(--accent); }
+
+.lede {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  line-height: 1.5;
+  font-weight: 300;
+  max-width: 720px;
+  color: var(--ink);
+  margin-bottom: 48px;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  margin-top: 40px;
+}
+
+.body-text {
+  font-size: 16.5px;
+  line-height: 1.65;
+  color: var(--ink);
+}
+.body-text p { margin-bottom: 16px; }
+.body-text strong { font-weight: 600; }
+.body-text .accent { color: var(--accent); font-weight: 500; }
+.body-text code {
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+}
+
+/* ---------- EQUATION CARD ---------- */
+.eq-card {
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  padding: 36px 32px;
+  margin: 40px 0;
+  position: relative;
+}
+.eq-card::before {
+  content: 'THE KEY EQUATION';
+  position: absolute;
+  top: -8px; left: 24px;
+  background: var(--paper);
+  padding: 0 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+}
+.equation {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: clamp(28px, 4vw, 44px);
+  text-align: center;
+  line-height: 1.4;
+  padding: 16px 0;
+}
+.eq-legend {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.eq-legend .item { border-left: 2px solid var(--accent); padding-left: 12px; }
+.eq-legend .sym {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 22px;
+  display: block;
+  margin-bottom: 4px;
+}
+.eq-legend .desc { color: var(--muted); font-size: 13px; }
+
+/* ---------- SVG STAGE ---------- */
+.stage {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  padding: 32px;
+  margin: 32px 0;
+  position: relative;
+}
+.stage-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.stage-title {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  margin-bottom: 20px;
+  font-weight: 400;
+}
+.stage-title em { color: var(--accent); font-style: italic; }
+.stage svg { width: 100%; height: auto; display: block; }
+.stage-caption {
+  margin-top: 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+  font-style: italic;
+  font-family: 'Fraunces', serif;
+}
+
+/* ---------- INTERACTIVE ---------- */
+.interactive {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 48px;
+  margin: 48px 0;
+  border-radius: 0;
+}
+.interactive .stage-label { color: var(--accent-soft); }
+.interactive .stage-title { color: var(--paper); }
+.interactive .stage-title em { color: var(--accent-soft); }
+
+.controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(244,239,230,0.15);
+}
+.btn {
+  background: transparent;
+  border: 1px solid var(--paper);
+  color: var(--paper);
+  padding: 10px 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn:hover { background: var(--paper); color: var(--ink); }
+.btn.active { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+
+.interactive-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 40px;
+  align-items: start;
+}
+.interactive-info h4 {
+  font-family: 'Fraunces', serif;
+  font-size: 20px;
+  font-weight: 400;
+  margin-bottom: 12px;
+  color: var(--accent-soft);
+}
+.interactive-info p {
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(244,239,230,0.85);
+  margin-bottom: 16px;
+}
+.interactive-info .stat {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px dashed rgba(244,239,230,0.2);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+}
+.interactive-info .stat .label { color: rgba(244,239,230,0.6); }
+.interactive-info .stat .val { color: var(--accent-soft); font-weight: 600; }
+
+/* ---------- COMPARISON ---------- */
+.compare {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin: 40px 0;
+}
+.compare-card {
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  padding: 28px;
+  position: relative;
+}
+.compare-card .tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.compare-card h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 28px;
+  font-weight: 400;
+  margin-bottom: 16px;
+}
+.compare-card .desc {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin-bottom: 16px;
+}
+.compare-card .param {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  padding: 10px 12px;
+  background: var(--paper);
+  border-left: 3px solid var(--accent);
+  margin-top: 12px;
+}
+
+/* ---------- FOOTER ---------- */
+footer {
+  padding: 60px 40px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+footer .accent-line {
+  width: 60px;
+  height: 2px;
+  background: var(--accent);
+  margin: 0 auto 24px;
+}
+
+/* ---------- ANIMATIONS ---------- */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.pulse { animation: pulse 2s ease-in-out infinite; }
+
+.atom-cell { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
+.atom-cell:hover { transform: scale(1.05); transform-origin: center; }
+
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; gap: 32px; padding: 48px 24px 40px; }
+  .two-col { grid-template-columns: 1fr; gap: 32px; }
+  .compare { grid-template-columns: 1fr; }
+  .interactive-grid { grid-template-columns: 1fr; }
+  section { padding: 48px 24px; }
+  .topbar { padding: 12px 24px; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="vol">Vol. 01 / Visual Primer</span>
+  <span>Tensor Dictionary Learning</span>
+  <span class="vol">For Beginners →</span>
+</div>
+
+<!-- ============ HERO ============ -->
+<section class="hero" style="border-top: none;">
+  <div class="hero-left">
+    <div class="hero-label">A Visual Primer</div>
+    <h1 class="serif">
+      Where does the<br>
+      <em>tensor structure</em><br>
+      <span class="strike">go?</span> live.
+    </h1>
+  </div>
+  <div class="hero-right">
+    <p>In dictionary learning, every data point is written as a <em>sparse combination of atoms</em>. The question this primer answers: when we add tensor decomposition to the mix, what exactly gets decomposed?</p>
+    <p>Short answer — <em>the atoms</em>. Not the sparse codes. Let's see why, and what that buys us.</p>
+    <div class="hero-meta">
+      <div><span>Topic</span>Tensor Dict. Learning</div>
+      <div><span>Audience</span>First-time readers</div>
+      <div><span>Reading time</span>~ 8 minutes</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECTION 1: CLASSIC DICT LEARNING ============ -->
+<section>
+  <div class="section-num">§ 01 / FOUNDATION</div>
+  <h2 class="section-title serif">First, the classic picture: <em>data = dictionary × sparse code</em>.</h2>
+
+  <div class="two-col">
+    <div class="body-text">
+      <p>Before we talk about tensors, let's make sure the basic factorization is clear. In <span class="accent">ordinary dictionary learning</span>, you start with a pile of data — say, a thousand image patches, each flattened into a vector.</p>
+      <p>You then ask: can I find a small set of <strong>atoms</strong> (call them <code>d₁, d₂, …, d_K</code>) such that every data point in my pile can be written as a <strong>sparse</strong> combination of these atoms?</p>
+      <p>"Sparse" means only a handful of atoms are active for any given data point — most coefficients are zero.</p>
+      <p>So we end up with three objects: the <span class="accent">data matrix Y</span>, the <span class="accent">dictionary D</span> (the atoms, stacked as columns), and the <span class="accent">sparse code matrix X</span> (the coefficients).</p>
+    </div>
+
+    <div class="stage">
+      <div class="stage-label">Figure 01</div>
+      <div class="stage-title serif">The matrix factorization <em>Y ≈ D · X</em></div>
+      <svg viewBox="0 0 600 280" xmlns="http://www.w3.org/2000/svg">
+        <!-- Y matrix (data) -->
+        <g transform="translate(20, 40)">
+          <rect x="0" y="0" width="100" height="180" fill="none" stroke="#1a1814" stroke-width="1.5"/>
+          <!-- data columns -->
+          <g fill="#1a1814" opacity="0.7">
+            <rect x="8" y="10" width="6" height="160"/>
+            <rect x="20" y="10" width="6" height="160" opacity="0.5"/>
+            <rect x="32" y="10" width="6" height="160" opacity="0.8"/>
+            <rect x="44" y="10" width="6" height="160" opacity="0.6"/>
+            <rect x="56" y="10" width="6" height="160" opacity="0.9"/>
+            <rect x="68" y="10" width="6" height="160" opacity="0.4"/>
+            <rect x="80" y="10" width="6" height="160" opacity="0.7"/>
+          </g>
+          <text x="50" y="210" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="22" fill="#1a1814">Y</text>
+          <text x="50" y="230" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#6b6354">DATA</text>
+          <text x="50" y="244" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6354">n × N</text>
+        </g>
+
+        <text x="145" y="135" font-family="Fraunces" font-size="32" fill="#c73e1d">≈</text>
+
+        <!-- D matrix (dictionary) -->
+        <g transform="translate(180, 40)">
+          <rect x="0" y="0" width="140" height="120" fill="none" stroke="#c73e1d" stroke-width="2"/>
+          <!-- atoms as colored columns -->
+          <g>
+            <rect x="6" y="6" width="14" height="108" fill="#c73e1d" opacity="0.85"/>
+            <rect x="24" y="6" width="14" height="108" fill="#c73e1d" opacity="0.6"/>
+            <rect x="42" y="6" width="14" height="108" fill="#c73e1d" opacity="0.4"/>
+            <rect x="60" y="6" width="14" height="108" fill="#c73e1d" opacity="0.7"/>
+            <rect x="78" y="6" width="14" height="108" fill="#c73e1d" opacity="0.5"/>
+            <rect x="96" y="6" width="14" height="108" fill="#c73e1d" opacity="0.8"/>
+            <rect x="114" y="6" width="14" height="108" fill="#c73e1d" opacity="0.65"/>
+          </g>
+          <text x="70" y="150" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="22" fill="#c73e1d">D</text>
+          <text x="70" y="170" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#6b6354">DICTIONARY (ATOMS)</text>
+          <text x="70" y="184" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6354">n × K</text>
+        </g>
+
+        <text x="340" y="135" font-family="Fraunces" font-size="32" fill="#1a1814">×</text>
+
+        <!-- X matrix (sparse code) -->
+        <g transform="translate(370, 40)">
+          <rect x="0" y="0" width="120" height="180" fill="none" stroke="#1a1814" stroke-width="1.5"/>
+          <!-- sparse pattern: dots scattered -->
+          <g fill="#1a1814">
+            <circle cx="15" cy="25" r="4"/>
+            <circle cx="15" cy="95" r="4"/>
+            <circle cx="35" cy="50" r="4"/>
+            <circle cx="35" cy="140" r="4"/>
+            <circle cx="55" cy="15" r="4"/>
+            <circle cx="55" cy="110" r="4"/>
+            <circle cx="75" cy="65" r="4"/>
+            <circle cx="75" cy="160" r="4"/>
+            <circle cx="95" cy="30" r="4"/>
+            <circle cx="95" cy="125" r="4"/>
+          </g>
+          <text x="60" y="210" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="22" fill="#1a1814">X</text>
+          <text x="60" y="230" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#6b6354">SPARSE CODES</text>
+          <text x="60" y="244" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6354">K × N — mostly 0</text>
+        </g>
+      </svg>
+      <p class="stage-caption">Each column of Y is a data point. Each column of D is one atom. Each column of X tells us which atoms (and how much of each) build that data point. The dots in X are non-zeros — most cells are blank.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECTION 2: THE PROBLEM ============ -->
+<section>
+  <div class="section-num">§ 02 / THE PROBLEM</div>
+  <h2 class="section-title serif">But real data isn't a flat vector — it has <em>shape</em>.</h2>
+  <p class="lede">A hyperspectral image is height × width × wavelength. An fMRI scan is x × y × z × time. To use classic dictionary learning, we have to <em>flatten</em> all that structure into a single long vector. Each atom then has to relearn the structure from scratch — wasteful, and noisy.</p>
+
+  <div class="stage">
+    <div class="stage-label">Figure 02</div>
+    <div class="stage-title serif">A hyperspectral pixel cube becomes a <em>flat vector</em> — structure lost</div>
+    <svg viewBox="0 0 800 240" xmlns="http://www.w3.org/2000/svg">
+      <!-- 3D cube (data tensor) -->
+      <g transform="translate(40, 40)">
+        <!-- back face -->
+        <polygon points="60,0 180,0 180,120 60,120" fill="#ebe4d4" stroke="#1a1814" stroke-width="1.5"/>
+        <!-- side -->
+        <polygon points="180,0 220,30 220,150 180,120" fill="#d4cab2" stroke="#1a1814" stroke-width="1.5"/>
+        <!-- top -->
+        <polygon points="60,0 100,30 220,30 180,0" fill="#e0d7be" stroke="#1a1814" stroke-width="1.5"/>
+        <!-- grid lines on front to suggest layers -->
+        <line x1="60" y1="30" x2="180" y2="30" stroke="#1a1814" stroke-width="0.5" opacity="0.4"/>
+        <line x1="60" y1="60" x2="180" y2="60" stroke="#1a1814" stroke-width="0.5" opacity="0.4"/>
+        <line x1="60" y1="90" x2="180" y2="90" stroke="#1a1814" stroke-width="0.5" opacity="0.4"/>
+        <line x1="90" y1="0" x2="90" y2="120" stroke="#1a1814" stroke-width="0.5" opacity="0.4"/>
+        <line x1="120" y1="0" x2="120" y2="120" stroke="#1a1814" stroke-width="0.5" opacity="0.4"/>
+        <line x1="150" y1="0" x2="150" y2="120" stroke="#1a1814" stroke-width="0.5" opacity="0.4"/>
+
+        <!-- mode labels -->
+        <text x="120" y="160" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="14" fill="#1a1814">width (W)</text>
+        <text x="40" y="65" text-anchor="end" font-family="Fraunces" font-style="italic" font-size="14" fill="#1a1814">height (H)</text>
+        <text x="230" y="100" font-family="Fraunces" font-style="italic" font-size="14" fill="#c73e1d">spectral bands (C)</text>
+
+        <text x="120" y="200" text-anchor="middle" font-family="JetBrains Mono" font-size="11" letter-spacing="0.1em" fill="#6b6354">STRUCTURED TENSOR — H × W × C</text>
+      </g>
+
+      <!-- arrow -->
+      <g transform="translate(360, 80)">
+        <line x1="0" y1="40" x2="80" y2="40" stroke="#c73e1d" stroke-width="2"/>
+        <polygon points="80,40 70,35 70,45" fill="#c73e1d"/>
+        <text x="40" y="30" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#c73e1d" letter-spacing="0.1em">FLATTEN</text>
+        <text x="40" y="60" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="11" fill="#6b6354">vec( · )</text>
+      </g>
+
+      <!-- flat vector -->
+      <g transform="translate(470, 60)">
+        <rect x="0" y="40" width="280" height="20" fill="none" stroke="#1a1814" stroke-width="1.5"/>
+        <!-- tiny cells -->
+        <g fill="#1a1814" opacity="0.6">
+          <rect x="2" y="42" width="6" height="16"/>
+          <rect x="10" y="42" width="6" height="16" opacity="0.5"/>
+          <rect x="18" y="42" width="6" height="16" opacity="0.8"/>
+          <rect x="26" y="42" width="6" height="16" opacity="0.3"/>
+          <rect x="34" y="42" width="6" height="16" opacity="0.7"/>
+          <rect x="42" y="42" width="6" height="16" opacity="0.5"/>
+          <rect x="50" y="42" width="6" height="16" opacity="0.9"/>
+          <rect x="58" y="42" width="6" height="16" opacity="0.4"/>
+          <rect x="66" y="42" width="6" height="16" opacity="0.6"/>
+          <rect x="74" y="42" width="6" height="16" opacity="0.7"/>
+          <rect x="82" y="42" width="6" height="16" opacity="0.3"/>
+          <rect x="90" y="42" width="6" height="16" opacity="0.8"/>
+          <rect x="98" y="42" width="6" height="16" opacity="0.5"/>
+          <rect x="106" y="42" width="6" height="16" opacity="0.7"/>
+          <rect x="114" y="42" width="6" height="16" opacity="0.4"/>
+          <rect x="122" y="42" width="6" height="16" opacity="0.6"/>
+          <rect x="130" y="42" width="6" height="16" opacity="0.8"/>
+          <rect x="138" y="42" width="6" height="16" opacity="0.5"/>
+          <rect x="146" y="42" width="6" height="16" opacity="0.7"/>
+          <rect x="154" y="42" width="6" height="16" opacity="0.3"/>
+          <rect x="162" y="42" width="6" height="16" opacity="0.6"/>
+          <rect x="170" y="42" width="6" height="16" opacity="0.9"/>
+          <rect x="178" y="42" width="6" height="16" opacity="0.4"/>
+          <rect x="186" y="42" width="6" height="16" opacity="0.7"/>
+          <rect x="194" y="42" width="6" height="16" opacity="0.5"/>
+          <rect x="202" y="42" width="6" height="16" opacity="0.6"/>
+          <rect x="210" y="42" width="6" height="16" opacity="0.8"/>
+          <rect x="218" y="42" width="6" height="16" opacity="0.3"/>
+          <rect x="226" y="42" width="6" height="16" opacity="0.7"/>
+          <rect x="234" y="42" width="6" height="16" opacity="0.5"/>
+          <rect x="242" y="42" width="6" height="16" opacity="0.9"/>
+          <rect x="250" y="42" width="6" height="16" opacity="0.4"/>
+          <rect x="258" y="42" width="6" height="16" opacity="0.6"/>
+          <rect x="266" y="42" width="6" height="16" opacity="0.7"/>
+        </g>
+        <text x="140" y="100" text-anchor="middle" font-family="JetBrains Mono" font-size="11" letter-spacing="0.1em" fill="#6b6354">FLAT VECTOR — H·W·C entries</text>
+        <text x="140" y="120" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="13" fill="#c73e1d">mode structure: gone</text>
+      </g>
+    </svg>
+    <p class="stage-caption">Flattening turns a richly structured tensor into a vector of numbers with no built-in knowledge that some indices are spatial and others spectral. The dictionary then has to <em>learn</em> this from data — expensive in samples, and easy to overfit noise.</p>
+  </div>
+</section>
+
+<!-- ============ SECTION 3: THE FIX ============ -->
+<section>
+  <div class="section-num">§ 03 / THE INSIGHT</div>
+  <h2 class="section-title serif">The fix: keep <em>Y = D · X</em>, but give each atom in D <em>tensor structure</em>.</h2>
+
+  <div class="two-col">
+    <div class="body-text">
+      <p>Here is the answer to your question: <strong>tensor decomposition is applied to the atoms — not to the sparse code matrix X.</strong></p>
+      <p>The sparse codes stay scalars (just numbers saying "use this much of atom k"). What changes is that each atom <code>D_k</code> is no longer a generic vector — it is a <span class="accent">structured low-rank tensor</span>, written as a small set of mode-specific factor vectors.</p>
+      <p>So the dictionary is now a <em>dictionary of tensor atoms</em>, and each one is parameterized by far fewer numbers than its flat-vector cousin.</p>
+      <p>Concretely, for a hyperspectral atom of size H × W × C:</p>
+      <ul style="margin: 12px 0 16px 20px; line-height: 1.7;">
+        <li>A <strong>generic atom</strong> needs <code>H·W·C</code> parameters.</li>
+        <li>A <strong>rank-1 tensor atom</strong> needs only <code>H + W + C</code> parameters — a spatial-vertical factor, a spatial-horizontal factor, and a spectral factor — multiplied together (an outer product).</li>
+      </ul>
+      <p>That's the whole trick. Below is the picture.</p>
+    </div>
+
+    <div class="eq-card">
+      <div class="equation">
+        Y <span style="color: var(--accent);">≈</span> 𝒟 <span style="color: var(--accent);">·</span> X
+      </div>
+      <div class="equation" style="font-size: 22px; margin-top: -8px;">
+        with each atom &nbsp; 𝒟<sub>k</sub> = a<sub>k</sub> ∘ b<sub>k</sub> ∘ c<sub>k</sub>
+      </div>
+      <div class="eq-legend">
+        <div class="item">
+          <span class="sym">Y</span>
+          <div>The tensor dataset (N samples, each H×W×C)</div>
+        </div>
+        <div class="item">
+          <span class="sym">𝒟</span>
+          <div>The <strong>tensor dictionary</strong> — K structured atoms</div>
+        </div>
+        <div class="item">
+          <span class="sym">X</span>
+          <div>Sparse codes (still ordinary scalars)</div>
+        </div>
+        <div class="item">
+          <span class="sym">∘</span>
+          <div>Outer product — combines mode factors into a tensor</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- The big visual: tensor atom decomposition -->
+  <div class="stage">
+    <div class="stage-label">Figure 03</div>
+    <div class="stage-title serif">One atom, unpacked: <em>spatial × spatial × spectral</em></div>
+    <svg viewBox="0 0 900 280" xmlns="http://www.w3.org/2000/svg">
+      <!-- The atom as a cube -->
+      <g transform="translate(40, 50)">
+        <polygon points="60,0 180,0 180,120 60,120" fill="#e8a89a" stroke="#c73e1d" stroke-width="1.5" opacity="0.5"/>
+        <polygon points="180,0 220,30 220,150 180,120" fill="#c73e1d" stroke="#c73e1d" stroke-width="1.5" opacity="0.6"/>
+        <polygon points="60,0 100,30 220,30 180,0" fill="#d97359" stroke="#c73e1d" stroke-width="1.5" opacity="0.55"/>
+        <text x="130" y="180" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="20" fill="#1a1814">𝒟<tspan font-size="14" dy="4">k</tspan></text>
+        <text x="130" y="205" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#6b6354" letter-spacing="0.1em">ONE TENSOR ATOM</text>
+        <text x="130" y="222" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6354">H × W × C</text>
+      </g>
+
+      <text x="290" y="115" font-family="Fraunces" font-size="36" fill="#c73e1d">=</text>
+
+      <!-- a vector (mode 1 / vertical spatial) -->
+      <g transform="translate(340, 30)">
+        <rect x="0" y="0" width="22" height="160" fill="none" stroke="#1a1814" stroke-width="1.5"/>
+        <g fill="#1a1814">
+          <rect x="2" y="2" width="18" height="14" opacity="0.4"/>
+          <rect x="2" y="18" width="18" height="14" opacity="0.7"/>
+          <rect x="2" y="34" width="18" height="14" opacity="0.9"/>
+          <rect x="2" y="50" width="18" height="14" opacity="0.85"/>
+          <rect x="2" y="66" width="18" height="14" opacity="0.6"/>
+          <rect x="2" y="82" width="18" height="14" opacity="0.5"/>
+          <rect x="2" y="98" width="18" height="14" opacity="0.7"/>
+          <rect x="2" y="114" width="18" height="14" opacity="0.4"/>
+          <rect x="2" y="130" width="18" height="14" opacity="0.3"/>
+          <rect x="2" y="146" width="18" height="14" opacity="0.5"/>
+        </g>
+        <text x="11" y="185" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="18" fill="#1a1814">a<tspan font-size="12" dy="4">k</tspan></text>
+        <text x="11" y="208" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6354">VERTICAL</text>
+        <text x="11" y="222" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6354">(H)</text>
+      </g>
+
+      <text x="385" y="115" font-family="Fraunces" font-size="28" fill="#c73e1d">∘</text>
+
+      <!-- b vector (horizontal spatial) -->
+      <g transform="translate(410, 100)">
+        <rect x="0" y="0" width="160" height="22" fill="none" stroke="#1a1814" stroke-width="1.5"/>
+        <g fill="#1a1814">
+          <rect x="2" y="2" width="14" height="18" opacity="0.5"/>
+          <rect x="18" y="2" width="14" height="18" opacity="0.8"/>
+          <rect x="34" y="2" width="14" height="18" opacity="0.9"/>
+          <rect x="50" y="2" width="14" height="18" opacity="0.7"/>
+          <rect x="66" y="2" width="14" height="18" opacity="0.5"/>
+          <rect x="82" y="2" width="14" height="18" opacity="0.6"/>
+          <rect x="98" y="2" width="14" height="18" opacity="0.4"/>
+          <rect x="114" y="2" width="14" height="18" opacity="0.3"/>
+          <rect x="130" y="2" width="14" height="18" opacity="0.55"/>
+          <rect x="146" y="2" width="14" height="18" opacity="0.4"/>
+        </g>
+        <text x="80" y="48" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="18" fill="#1a1814">b<tspan font-size="12" dy="4">k</tspan></text>
+        <text x="80" y="70" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6354">HORIZONTAL (W)</text>
+      </g>
+
+      <text x="585" y="115" font-family="Fraunces" font-size="28" fill="#c73e1d">∘</text>
+
+      <!-- c vector (spectral) -->
+      <g transform="translate(615, 50)">
+        <!-- spectral curve -->
+        <rect x="0" y="0" width="220" height="120" fill="#f4efe6" stroke="#1a1814" stroke-width="1"/>
+        <path d="M 5,90 Q 30,85 50,70 T 95,30 T 145,45 T 195,75 T 215,80" fill="none" stroke="#c73e1d" stroke-width="2.5"/>
+        <!-- baseline -->
+        <line x1="5" y1="110" x2="215" y2="110" stroke="#6b6354" stroke-width="0.5"/>
+        <text x="10" y="120" font-family="JetBrains Mono" font-size="8" fill="#6b6354">400nm</text>
+        <text x="180" y="120" font-family="JetBrains Mono" font-size="8" fill="#6b6354">2500nm</text>
+        <text x="110" y="148" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="18" fill="#1a1814">c<tspan font-size="12" dy="4">k</tspan></text>
+        <text x="110" y="170" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6354">SPECTRAL PROFILE (C)</text>
+        <text x="110" y="184" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#c73e1d">"this is what vegetation looks like"</text>
+      </g>
+    </svg>
+    <p class="stage-caption">A rank-1 tensor atom is the outer product of three factor vectors — one for each mode of the data. The spectral factor <em>c</em><sub>k</sub> may correspond to a real material signature (e.g., vegetation, water, mineral), giving each atom a physical interpretation that a flat-vector atom cannot offer.</p>
+  </div>
+</section>
+
+<!-- ============ INTERACTIVE ============ -->
+<section style="padding: 80px 40px 40px;">
+  <div class="section-num">§ 04 / INTERACTIVE</div>
+  <h2 class="section-title serif">Click an atom. See the <em>sparse code</em> change — but the atoms stay structured.</h2>
+
+  <div class="interactive">
+    <div class="stage-label">Live Demo</div>
+    <div class="stage-title serif">Build a data point from <em>tensor atoms</em></div>
+
+    <div class="controls">
+      <button class="btn active" data-mode="rank1">RANK-1 ATOMS</button>
+      <button class="btn" data-mode="generic">GENERIC (FLAT) ATOMS</button>
+      <button class="btn" id="resetBtn">RESET</button>
+    </div>
+
+    <div class="interactive-grid">
+      <div>
+        <svg id="liveSvg" viewBox="0 0 700 380" xmlns="http://www.w3.org/2000/svg" style="background: rgba(244,239,230,0.03); border: 1px solid rgba(244,239,230,0.15);">
+          <!-- atoms row -->
+          <text x="20" y="30" font-family="JetBrains Mono" font-size="11" fill="#e8a89a" letter-spacing="0.15em">DICTIONARY OF 6 TENSOR ATOMS — click to activate</text>
+          <g id="atomsRow"></g>
+
+          <!-- equation row -->
+          <text x="20" y="200" font-family="JetBrains Mono" font-size="11" fill="#e8a89a" letter-spacing="0.15em">SPARSE COEFFICIENTS x — only active atoms shown</text>
+          <g id="coefsRow"></g>
+
+          <!-- reconstruction -->
+          <text x="20" y="290" font-family="JetBrains Mono" font-size="11" fill="#e8a89a" letter-spacing="0.15em">RECONSTRUCTED DATA POINT</text>
+          <g id="recon"></g>
+        </svg>
+      </div>
+
+      <div class="interactive-info">
+        <h4 class="serif" id="modeTitle">Rank-1 Tensor Atoms</h4>
+        <p id="modeDesc">Each atom is a structured 8×8 tensor built from just two factor vectors (one per mode). Click atoms in the dictionary to toggle them on. Watch the reconstruction at the bottom build up from a sparse combination.</p>
+
+        <div class="stat"><span class="label">Atom size</span><span class="val">8 × 8 = 64</span></div>
+        <div class="stat"><span class="label">Params per atom (rank-1)</span><span class="val" id="paramCount">8 + 8 = 16</span></div>
+        <div class="stat"><span class="label">Active atoms</span><span class="val" id="activeCount">0</span></div>
+        <div class="stat"><span class="label">Sparsity</span><span class="val" id="sparsity">100%</span></div>
+
+        <p style="margin-top: 24px; font-size: 13px; color: rgba(244,239,230,0.6); font-style: italic;">Notice: switching modes changes <em>what an atom looks like</em>. The sparse-code mechanism — picking a few atoms — is unchanged.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECTION 5: WHICH DECOMP ============ -->
+<section>
+  <div class="section-num">§ 05 / FAMILIES</div>
+  <h2 class="section-title serif">Three flavors of tensor atom: <em>CP, Tucker, TT</em>.</h2>
+  <p class="lede">"Tensor decomposition" isn't one thing — it's a family. Each choice trades parameter count against expressivity in a different way. Same dictionary-learning skeleton, three different atom parameterizations.</p>
+
+  <div class="compare">
+    <div class="compare-card">
+      <div class="tag">CP / CANDECOMP-PARAFAC</div>
+      <h3 class="serif">Sum of rank-1 outer products</h3>
+      <p class="desc">The simplest. Each atom is a sum of R rank-1 tensors — like the picture above, but R of them added together. Most parsimonious; can be too restrictive for complex patterns.</p>
+      <svg viewBox="0 0 240 80" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="20" width="40" height="40" fill="#c73e1d" opacity="0.7" stroke="#1a1814"/>
+        <text x="55" y="46" font-family="Fraunces" font-size="20">=</text>
+        <rect x="75" y="30" width="20" height="20" fill="#c73e1d" opacity="0.6" stroke="#1a1814"/>
+        <text x="105" y="46" font-family="Fraunces" font-size="16">+</text>
+        <rect x="125" y="30" width="20" height="20" fill="#c73e1d" opacity="0.5" stroke="#1a1814"/>
+        <text x="155" y="46" font-family="Fraunces" font-size="16">+ ⋯ +</text>
+        <rect x="200" y="30" width="20" height="20" fill="#c73e1d" opacity="0.4" stroke="#1a1814"/>
+      </svg>
+      <div class="param">params: R · (H + W + C)</div>
+    </div>
+
+    <div class="compare-card">
+      <div class="tag">TUCKER</div>
+      <h3 class="serif">Core tensor + factor matrices</h3>
+      <p class="desc">A small "core" tensor multiplied along each mode by a factor matrix. Far more expressive than CP — captures interactions between modes — but the core itself can be parameter-heavy.</p>
+      <svg viewBox="0 0 240 80" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="20" width="40" height="40" fill="#c73e1d" opacity="0.7" stroke="#1a1814"/>
+        <text x="55" y="46" font-family="Fraunces" font-size="20">=</text>
+        <rect x="75" y="30" width="20" height="20" fill="#1a1814" opacity="0.85" stroke="#1a1814"/>
+        <text x="100" y="46" font-family="Fraunces" font-size="16">×</text>
+        <rect x="120" y="25" width="10" height="30" fill="#c73e1d" opacity="0.7" stroke="#1a1814"/>
+        <rect x="140" y="35" width="30" height="10" fill="#c73e1d" opacity="0.7" stroke="#1a1814"/>
+        <rect x="180" y="32" width="14" height="16" fill="#c73e1d" opacity="0.7" stroke="#1a1814"/>
+        <text x="205" y="46" font-family="JetBrains Mono" font-size="10" fill="#6b6354">factors</text>
+      </svg>
+      <div class="param">params: r·H + r·W + r·C + r³</div>
+    </div>
+
+    <div class="compare-card">
+      <div class="tag">TT / TENSOR-TRAIN</div>
+      <h3 class="serif">A chain of small tensors</h3>
+      <p class="desc">Each atom is a chain of small 3-way tensors, each linking to the next by a shared "bond" index. Scales gracefully to many modes; popular for high-order data.</p>
+      <svg viewBox="0 0 240 80" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="20" width="40" height="40" fill="#c73e1d" opacity="0.7" stroke="#1a1814"/>
+        <text x="55" y="46" font-family="Fraunces" font-size="20">=</text>
+        <rect x="78" y="30" width="22" height="22" fill="#c73e1d" opacity="0.65" stroke="#1a1814"/>
+        <line x1="100" y1="41" x2="118" y2="41" stroke="#1a1814" stroke-width="1.5"/>
+        <rect x="118" y="30" width="22" height="22" fill="#c73e1d" opacity="0.65" stroke="#1a1814"/>
+        <line x1="140" y1="41" x2="158" y2="41" stroke="#1a1814" stroke-width="1.5"/>
+        <rect x="158" y="30" width="22" height="22" fill="#c73e1d" opacity="0.65" stroke="#1a1814"/>
+        <text x="195" y="46" font-family="JetBrains Mono" font-size="10" fill="#6b6354">chain</text>
+      </svg>
+      <div class="param">params: ~ r²·(H + W + C)</div>
+    </div>
+  </div>
+
+  <div class="body-text" style="margin-top: 32px; max-width: 800px;">
+    <p>The original passage you shared concerns exactly this choice: <strong>under a fixed parameter budget, which family produces the best dictionary?</strong> The literature has rarely compared them head-to-head with parameters held equal — that is the gap your work fills.</p>
+  </div>
+</section>
+
+<!-- ============ SECTION 6: RECAP ============ -->
+<section style="background: var(--paper-deep);">
+  <div class="section-num">§ 06 / RECAP</div>
+  <h2 class="section-title serif">So, where does the tensor decomposition <em>live</em>?</h2>
+
+  <div class="two-col">
+    <div class="body-text">
+      <p><span class="accent">In the dictionary.</span> The atoms are tensor-structured. The sparse code remains a flat vector of scalars — one coefficient per atom, mostly zero.</p>
+      <p>You can think of it as a clean division of labor:</p>
+      <p><strong>The sparse code</strong> says <em>which atoms</em> are active and <em>how much</em> of each. It carries the locally-adaptive part of the model.</p>
+      <p><strong>The tensor atoms</strong> say <em>what those atoms look like</em>. Their structure encodes the prior knowledge that data has multiple modes that interact in low-rank ways.</p>
+      <p>This split gives you the three advantages from the original passage at once: parameter efficiency (atoms are tiny), implicit regularization (atoms can't represent unstructured noise), and interpretability (each mode factor has a physical meaning).</p>
+    </div>
+
+    <div class="stage" style="background: var(--paper);">
+      <div class="stage-label">Final summary</div>
+      <div class="stage-title serif">A single picture to remember</div>
+      <svg viewBox="0 0 600 280" xmlns="http://www.w3.org/2000/svg">
+        <!-- data tensor on left -->
+        <g transform="translate(20, 60)">
+          <polygon points="40,0 100,0 100,80 40,80" fill="#1a1814" opacity="0.15" stroke="#1a1814" stroke-width="1.5"/>
+          <polygon points="100,0 120,15 120,95 100,80" fill="#1a1814" opacity="0.25" stroke="#1a1814" stroke-width="1.5"/>
+          <polygon points="40,0 60,15 120,15 100,0" fill="#1a1814" opacity="0.2" stroke="#1a1814" stroke-width="1.5"/>
+          <text x="70" y="120" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="18">Y</text>
+          <text x="70" y="138" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6354">DATA TENSOR</text>
+        </g>
+
+        <text x="170" y="115" font-family="Fraunces" font-size="28" fill="#c73e1d">≈</text>
+
+        <!-- tensor dictionary: row of mini cubes -->
+        <g transform="translate(200, 60)">
+          <text x="80" y="-8" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#c73e1d" letter-spacing="0.15em">TENSOR ATOMS</text>
+          <g>
+            <polygon points="0,15 20,15 20,55 0,55" fill="#c73e1d" opacity="0.6"/>
+            <polygon points="20,15 28,22 28,62 20,55" fill="#c73e1d" opacity="0.75"/>
+            <polygon points="0,15 8,22 28,22 20,15" fill="#c73e1d" opacity="0.65"/>
+          </g>
+          <g transform="translate(40,0)">
+            <polygon points="0,15 20,15 20,55 0,55" fill="#c73e1d" opacity="0.5"/>
+            <polygon points="20,15 28,22 28,62 20,55" fill="#c73e1d" opacity="0.65"/>
+            <polygon points="0,15 8,22 28,22 20,15" fill="#c73e1d" opacity="0.55"/>
+          </g>
+          <g transform="translate(80,0)">
+            <polygon points="0,15 20,15 20,55 0,55" fill="#c73e1d" opacity="0.7"/>
+            <polygon points="20,15 28,22 28,62 20,55" fill="#c73e1d" opacity="0.85"/>
+            <polygon points="0,15 8,22 28,22 20,15" fill="#c73e1d" opacity="0.75"/>
+          </g>
+          <g transform="translate(120,0)">
+            <polygon points="0,15 20,15 20,55 0,55" fill="#c73e1d" opacity="0.45"/>
+            <polygon points="20,15 28,22 28,62 20,55" fill="#c73e1d" opacity="0.6"/>
+            <polygon points="0,15 8,22 28,22 20,15" fill="#c73e1d" opacity="0.5"/>
+          </g>
+          <text x="80" y="100" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="18">𝒟</text>
+          <text x="80" y="118" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6354">STRUCTURED!</text>
+        </g>
+
+        <text x="395" y="115" font-family="Fraunces" font-size="28">×</text>
+
+        <!-- sparse code -->
+        <g transform="translate(430, 60)">
+          <text x="60" y="-8" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#1a1814" letter-spacing="0.15em">SPARSE CODES</text>
+          <rect x="0" y="10" width="120" height="80" fill="none" stroke="#1a1814" stroke-width="1.5"/>
+          <g fill="#1a1814">
+            <circle cx="20" cy="30" r="4"/>
+            <circle cx="50" cy="55" r="4"/>
+            <circle cx="80" cy="20" r="4"/>
+            <circle cx="100" cy="70" r="4"/>
+            <circle cx="30" cy="75" r="4"/>
+          </g>
+          <text x="60" y="118" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="18">X</text>
+          <text x="60" y="136" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6b6354">FLAT &amp; SPARSE</text>
+        </g>
+
+        <!-- annotation -->
+        <g transform="translate(40, 230)">
+          <line x1="0" y1="0" x2="540" y2="0" stroke="#c73e1d" stroke-width="1" stroke-dasharray="4 4"/>
+          <text x="270" y="25" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="14" fill="#c73e1d">tensor structure lives here — in the atoms — not in X</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="accent-line"></div>
+  END · A VISUAL PRIMER ON TENSOR DICTIONARY LEARNING
+</footer>
+
+<script>
+// ============ INTERACTIVE LOGIC ============
+const atomsRow = document.getElementById('atomsRow');
+const coefsRow = document.getElementById('coefsRow');
+const recon = document.getElementById('recon');
+const buttons = document.querySelectorAll('.btn[data-mode]');
+const resetBtn = document.getElementById('resetBtn');
+const modeTitle = document.getElementById('modeTitle');
+const modeDesc = document.getElementById('modeDesc');
+const paramCountEl = document.getElementById('paramCount');
+const activeCountEl = document.getElementById('activeCount');
+const sparsityEl = document.getElementById('sparsity');
+
+const SIZE = 8;
+const K = 6; // number of atoms
+const CELL = 14;
+let mode = 'rank1';
+let active = new Set();
+
+// Generate atoms — for rank-1, each atom = outer(a, b)
+const rank1Atoms = [];
+const genericAtoms = [];
+const rng = (s) => { let x = s; return () => { x = (x * 9301 + 49297) % 233280; return x / 233280; }; };
+const r = rng(42);
+
+for (let k = 0; k < K; k++) {
+  // rank-1: smooth-ish factors
+  const a = Array.from({length: SIZE}, (_, i) => {
+    const phase = k * 0.7;
+    return 0.4 + 0.6 * Math.abs(Math.sin((i + phase) * (0.6 + k * 0.15)));
+  });
+  const b = Array.from({length: SIZE}, (_, j) => {
+    const phase = k * 1.1;
+    return 0.4 + 0.6 * Math.abs(Math.cos((j + phase) * (0.5 + k * 0.2)));
+  });
+  const grid = [];
+  for (let i = 0; i < SIZE; i++) {
+    const row = [];
+    for (let j = 0; j < SIZE; j++) row.push(a[i] * b[j]);
+    grid.push(row);
+  }
+  rank1Atoms.push({a, b, grid});
+
+  // generic: random noisy patterns
+  const gGrid = [];
+  for (let i = 0; i < SIZE; i++) {
+    const row = [];
+    for (let j = 0; j < SIZE; j++) row.push(r());
+    gGrid.push(row);
+  }
+  genericAtoms.push({grid: gGrid});
+}
+
+function getAtoms() { return mode === 'rank1' ? rank1Atoms : genericAtoms; }
+
+function drawAtom(g, atom, x, y, size, isActive) {
+  const cellSize = size / SIZE;
+  const opacity = isActive ? 1 : 0.55;
+  const stroke = isActive ? '#e8a89a' : 'rgba(244,239,230,0.3)';
+  const sw = isActive ? 2 : 1;
+
+  // border
+  const border = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  border.setAttribute('x', x); border.setAttribute('y', y);
+  border.setAttribute('width', size); border.setAttribute('height', size);
+  border.setAttribute('fill', 'none');
+  border.setAttribute('stroke', stroke);
+  border.setAttribute('stroke-width', sw);
+  g.appendChild(border);
+
+  // cells
+  for (let i = 0; i < SIZE; i++) {
+    for (let j = 0; j < SIZE; j++) {
+      const v = atom.grid[i][j];
+      const cell = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      cell.setAttribute('x', x + j * cellSize);
+      cell.setAttribute('y', y + i * cellSize);
+      cell.setAttribute('width', cellSize);
+      cell.setAttribute('height', cellSize);
+      cell.setAttribute('fill', '#c73e1d');
+      cell.setAttribute('opacity', v * opacity);
+      g.appendChild(cell);
+    }
+  }
+}
+
+function render() {
+  // clear
+  atomsRow.innerHTML = '';
+  coefsRow.innerHTML = '';
+  recon.innerHTML = '';
+
+  const atoms = getAtoms();
+  const atomSize = 80;
+  const gap = 24;
+  const startX = 20;
+  const startY = 50;
+
+  // ATOMS ROW
+  for (let k = 0; k < K; k++) {
+    const x = startX + k * (atomSize + gap);
+    const y = startY;
+    const groupG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    groupG.classList.add('atom-cell');
+    groupG.style.cursor = 'pointer';
+    groupG.addEventListener('click', () => {
+      if (active.has(k)) active.delete(k);
+      else if (active.size < 4) active.add(k);
+      render();
+    });
+
+    drawAtom(groupG, atoms[k], x, y, atomSize, active.has(k));
+
+    // label
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lbl.setAttribute('x', x + atomSize / 2);
+    lbl.setAttribute('y', y + atomSize + 16);
+    lbl.setAttribute('text-anchor', 'middle');
+    lbl.setAttribute('font-family', 'JetBrains Mono');
+    lbl.setAttribute('font-size', '10');
+    lbl.setAttribute('fill', active.has(k) ? '#e8a89a' : 'rgba(244,239,230,0.5)');
+    lbl.textContent = `𝒟${k+1}`;
+    groupG.appendChild(lbl);
+
+    atomsRow.appendChild(groupG);
+  }
+
+  // COEFFICIENTS ROW
+  const coefs = Array.from(active).sort((a,b)=>a-b);
+  if (coefs.length === 0) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', 20); t.setAttribute('y', 240);
+    t.setAttribute('font-family', 'Fraunces'); t.setAttribute('font-style', 'italic');
+    t.setAttribute('font-size', '14'); t.setAttribute('fill', 'rgba(244,239,230,0.4)');
+    t.textContent = '— no atoms selected — click some atoms above —';
+    coefsRow.appendChild(t);
+  } else {
+    let cx = 20;
+    coefs.forEach((k, idx) => {
+      const val = 0.6 + 0.4 * Math.sin(k * 1.7);
+      // x_k label
+      const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      lbl.setAttribute('x', cx); lbl.setAttribute('y', 235);
+      lbl.setAttribute('font-family', 'Fraunces'); lbl.setAttribute('font-style', 'italic');
+      lbl.setAttribute('font-size', '16'); lbl.setAttribute('fill', '#e8a89a');
+      lbl.textContent = `${val.toFixed(2)} · 𝒟${k+1}`;
+      coefsRow.appendChild(lbl);
+      cx += 100;
+      if (idx < coefs.length - 1) {
+        const plus = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        plus.setAttribute('x', cx - 20); plus.setAttribute('y', 235);
+        plus.setAttribute('font-family', 'Fraunces');
+        plus.setAttribute('font-size', '16'); plus.setAttribute('fill', '#c73e1d');
+        plus.textContent = '+';
+        coefsRow.appendChild(plus);
+      }
+    });
+  }
+
+  // RECONSTRUCTION
+  if (coefs.length > 0) {
+    const grid = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+    coefs.forEach(k => {
+      const val = 0.6 + 0.4 * Math.sin(k * 1.7);
+      for (let i = 0; i < SIZE; i++)
+        for (let j = 0; j < SIZE; j++)
+          grid[i][j] += val * atoms[k].grid[i][j];
+    });
+    // normalize for display
+    let max = 0;
+    for (let i = 0; i < SIZE; i++)
+      for (let j = 0; j < SIZE; j++)
+        if (grid[i][j] > max) max = grid[i][j];
+    if (max > 0) for (let i = 0; i < SIZE; i++) for (let j = 0; j < SIZE; j++) grid[i][j] /= max;
+
+    drawAtom(recon, {grid}, 20, 310, 60, true);
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lbl.setAttribute('x', 100); lbl.setAttribute('y', 345);
+    lbl.setAttribute('font-family', 'Fraunces'); lbl.setAttribute('font-style', 'italic');
+    lbl.setAttribute('font-size', '16'); lbl.setAttribute('fill', '#e8a89a');
+    lbl.textContent = '= reconstructed sample Y';
+    recon.appendChild(lbl);
+  } else {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', 20); t.setAttribute('y', 340);
+    t.setAttribute('font-family', 'Fraunces'); t.setAttribute('font-style', 'italic');
+    t.setAttribute('font-size', '14'); t.setAttribute('fill', 'rgba(244,239,230,0.4)');
+    t.textContent = '— reconstruction will appear here —';
+    recon.appendChild(t);
+  }
+
+  // stats
+  activeCountEl.textContent = `${active.size} / ${K}`;
+  const sp = ((1 - active.size / K) * 100).toFixed(0);
+  sparsityEl.textContent = `${sp}%`;
+}
+
+buttons.forEach(b => {
+  b.addEventListener('click', () => {
+    buttons.forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    mode = b.dataset.mode;
+    if (mode === 'rank1') {
+      modeTitle.textContent = 'Rank-1 Tensor Atoms';
+      modeDesc.textContent = 'Each atom is a structured 8×8 tensor built from just two factor vectors (one per mode). Click atoms in the dictionary to toggle them on. Notice they look smooth — they cannot represent noise.';
+      paramCountEl.textContent = '8 + 8 = 16';
+    } else {
+      modeTitle.textContent = 'Generic (Flat) Atoms';
+      modeDesc.textContent = 'Each atom is an arbitrary 8×8 grid with no structural constraint. More expressive — but uses 64 parameters per atom instead of 16, and can fit noise.';
+      paramCountEl.textContent = '8 × 8 = 64';
+    }
+    render();
+  });
+});
+
+resetBtn.addEventListener('click', () => { active.clear(); render(); });
+
+render();
+</script>
+
+</body>
+</html>

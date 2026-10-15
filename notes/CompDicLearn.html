@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compressed Dictionary Learning — Real-World Applications</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&family=Libre+Franklin:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0e13;
+    --surface: #14171e;
+    --surface-raised: #1a1e28;
+    --border: #252a36;
+    --text: #c8cdd8;
+    --text-bright: #e8ecf4;
+    --text-dim: #6b7280;
+    --accent-cyan: #22d3ee;
+    --accent-cyan-dim: rgba(34,211,238,0.12);
+    --accent-amber: #fbbf24;
+    --accent-amber-dim: rgba(251,191,36,0.10);
+    --accent-rose: #fb7185;
+    --accent-rose-dim: rgba(251,113,133,0.10);
+    --accent-emerald: #34d399;
+    --accent-emerald-dim: rgba(52,211,153,0.10);
+    --accent-violet: #a78bfa;
+    --accent-violet-dim: rgba(167,139,250,0.10);
+    --accent-orange: #fb923c;
+    --accent-orange-dim: rgba(251,146,60,0.10);
+    --display: 'Playfair Display', Georgia, serif;
+    --body: 'Libre Franklin', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--body);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 17px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* --- NOISE TEXTURE OVERLAY --- */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* --- HERO --- */
+  .hero {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 100px 40px 70px;
+    position: relative;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 40px;
+    right: 40px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+
+  .hero-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent-cyan);
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hero-tag::before {
+    content: '';
+    width: 32px;
+    height: 1px;
+    background: var(--accent-cyan);
+  }
+
+  .hero h1 {
+    font-family: var(--display);
+    font-size: clamp(34px, 5.5vw, 52px);
+    line-height: 1.2;
+    color: var(--text-bright);
+    margin-bottom: 24px;
+    font-weight: 400;
+  }
+
+  .hero h1 em {
+    color: var(--accent-cyan);
+    font-style: italic;
+  }
+
+  .hero-sub {
+    font-size: 19px;
+    color: var(--text-dim);
+    max-width: 620px;
+    font-weight: 300;
+    line-height: 1.75;
+  }
+
+  /* --- PIPELINE RECAP --- */
+  .recap {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 64px 40px;
+  }
+
+  .recap-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 28px;
+  }
+
+  .pipeline-steps {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .pip-step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    flex: 1;
+    min-width: 130px;
+    position: relative;
+    transition: border-color 0.3s, background 0.3s;
+  }
+
+  .pip-step:hover {
+    border-color: var(--accent-cyan);
+    background: var(--accent-cyan-dim);
+  }
+
+  .pip-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent-cyan);
+    margin-bottom: 6px;
+  }
+
+  .pip-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+    line-height: 1.3;
+  }
+
+  /* --- SECTION --- */
+  .content {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+
+  .section-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 0;
+  }
+
+  .section-header {
+    padding: 64px 0 20px;
+  }
+
+  .section-header h2 {
+    font-family: var(--display);
+    font-size: 32px;
+    color: var(--text-bright);
+    font-weight: 400;
+  }
+
+  .section-header p {
+    color: var(--text-dim);
+    margin-top: 10px;
+    font-size: 16px;
+  }
+
+  /* --- APPLICATION CARDS --- */
+  .app-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 0;
+    margin-bottom: 28px;
+    overflow: hidden;
+    transition: border-color 0.4s, transform 0.3s;
+  }
+
+  .app-card:hover {
+    transform: translateY(-2px);
+  }
+
+  .app-card-top {
+    padding: 36px 36px 28px;
+    position: relative;
+  }
+
+  .app-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+
+  .app-card-top h3 {
+    font-family: var(--display);
+    font-size: 24px;
+    color: var(--text-bright);
+    margin-bottom: 8px;
+    font-weight: 400;
+  }
+
+  .app-card-top .domain {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: inline-block;
+  }
+
+  .app-card-top p {
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  /* --- DETAILS GRID inside card --- */
+  .app-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    border-top: 1px solid var(--border);
+  }
+
+  @media (max-width: 640px) {
+    .app-details { grid-template-columns: 1fr; }
+  }
+
+  .detail-cell {
+    padding: 22px 28px;
+    border-right: 1px solid var(--border);
+  }
+
+  .detail-cell:last-child { border-right: none; }
+
+  @media (max-width: 640px) {
+    .detail-cell {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .detail-cell:last-child { border-bottom: none; }
+  }
+
+  .detail-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  .detail-value {
+    font-size: 15px;
+    color: var(--text-bright);
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .detail-value small {
+    font-weight: 300;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+
+  /* --- CARD COLOR THEMES --- */
+  .theme-cyan .app-icon { background: var(--accent-cyan-dim); color: var(--accent-cyan); }
+  .theme-cyan .domain { color: var(--accent-cyan); }
+  .theme-cyan:hover { border-color: rgba(34,211,238,0.3); }
+
+  .theme-amber .app-icon { background: var(--accent-amber-dim); color: var(--accent-amber); }
+  .theme-amber .domain { color: var(--accent-amber); }
+  .theme-amber:hover { border-color: rgba(251,191,36,0.3); }
+
+  .theme-rose .app-icon { background: var(--accent-rose-dim); color: var(--accent-rose); }
+  .theme-rose .domain { color: var(--accent-rose); }
+  .theme-rose:hover { border-color: rgba(251,113,133,0.3); }
+
+  .theme-emerald .app-icon { background: var(--accent-emerald-dim); color: var(--accent-emerald); }
+  .theme-emerald .domain { color: var(--accent-emerald); }
+  .theme-emerald:hover { border-color: rgba(52,211,153,0.3); }
+
+  .theme-violet .app-icon { background: var(--accent-violet-dim); color: var(--accent-violet); }
+  .theme-violet .domain { color: var(--accent-violet); }
+  .theme-violet:hover { border-color: rgba(167,139,250,0.3); }
+
+  .theme-orange .app-icon { background: var(--accent-orange-dim); color: var(--accent-orange); }
+  .theme-orange .domain { color: var(--accent-orange); }
+  .theme-orange:hover { border-color: rgba(251,146,60,0.3); }
+
+  /* --- WHY IT WORKS BOX --- */
+  .why-box {
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 36px;
+    margin: 40px 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .why-box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent-cyan), var(--accent-violet), var(--accent-rose));
+  }
+
+  .why-box h3 {
+    font-family: var(--display);
+    font-size: 22px;
+    color: var(--text-bright);
+    margin-bottom: 18px;
+  }
+
+  .why-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 24px;
+  }
+
+  @media (max-width: 640px) {
+    .why-grid { grid-template-columns: 1fr; }
+  }
+
+  .why-item {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .why-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 16px;
+    background: var(--accent-cyan-dim);
+    color: var(--accent-cyan);
+  }
+
+  .why-item-text h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+  }
+
+  .why-item-text p {
+    font-size: 14px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  /* --- FOOTER --- */
+  footer {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 40px 80px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--border);
+  }
+
+  /* --- ANIMATIONS --- */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero, .recap, .section-header, .app-card, .why-box {
+    animation: fadeUp 0.6s ease-out both;
+  }
+
+  .app-card:nth-child(2) { animation-delay: 0.05s; }
+  .app-card:nth-child(3) { animation-delay: 0.10s; }
+  .app-card:nth-child(4) { animation-delay: 0.15s; }
+  .app-card:nth-child(5) { animation-delay: 0.20s; }
+  .app-card:nth-child(6) { animation-delay: 0.25s; }
+</style>
+</head>
+<body>
+
+<!-- =========== HERO =========== -->
+<header class="hero">
+  <div class="hero-tag">Applications</div>
+  <h1>What Can Compressed Dictionary Learning <em>Actually Do?</em></h1>
+  <p class="hero-sub">
+    The pipeline — cluster, compress, model errors, select, solve — turns impossibly large 
+    sparse coding problems into fast, tractable ones. Here's where that matters.
+  </p>
+</header>
+
+<!-- =========== PIPELINE RECAP =========== -->
+<div class="recap">
+  <div class="recap-label">The 6-step pipeline (recap)</div>
+  <div class="pipeline-steps">
+    <div class="pip-step">
+      <div class="pip-num">01</div>
+      <div class="pip-label">Partition atoms into clusters</div>
+    </div>
+    <div class="pip-step">
+      <div class="pip-num">02</div>
+      <div class="pip-label">Compress each cluster via SVD</div>
+    </div>
+    <div class="pip-step">
+      <div class="pip-num">03</div>
+      <div class="pip-label">Stack into compact dictionary</div>
+    </div>
+    <div class="pip-step">
+      <div class="pip-num">04</div>
+      <div class="pip-label">Model compression error</div>
+    </div>
+    <div class="pip-step">
+      <div class="pip-num">05</div>
+      <div class="pip-label">Select active clusters</div>
+    </div>
+    <div class="pip-step">
+      <div class="pip-num">06</div>
+      <div class="pip-label">Solve at full resolution</div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+  <div class="section-divider"></div>
+
+  <div class="section-header">
+    <h2>Real-World Applications</h2>
+    <p>Six domains where this pipeline transforms what's computationally possible.</p>
+  </div>
+
+  <!-- ====== APP 1: MEG/EEG ====== -->
+  <div class="app-card theme-cyan">
+    <div class="app-card-top">
+      <div class="app-icon">🧠</div>
+      <div class="domain">Neuroscience</div>
+      <h3>MEG / EEG Brain Source Localization</h3>
+      <p>
+        Magnetoencephalography measures magnetic fields produced by neural activity. The goal: 
+        figure out <em>where</em> in the brain signals originate. The dictionary contains one atom 
+        per possible source location and orientation — easily 50,000–100,000 atoms. Standard sparse 
+        solvers choke on this. The pipeline clusters atoms by brain region (50 regions), compresses 
+        each to ~10 basis vectors, identifies the 3–5 active regions in the compressed space, then 
+        solves only over those regions at full resolution.
+      </p>
+    </div>
+    <div class="app-details">
+      <div class="detail-cell">
+        <div class="detail-label">Dictionary Size</div>
+        <div class="detail-value">~100,000 atoms <small>→ compressed to ~500</small></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Speedup</div>
+        <div class="detail-value">~200× faster <small>vs. full OMP</small></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Key Benefit</div>
+        <div class="detail-value">Real-time source imaging during clinical procedures</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== APP 2: Hyperspectral ====== -->
+  <div class="app-card theme-amber">
+    <div class="app-card-top">
+      <div class="app-icon">🛰️</div>
+      <div class="domain">Remote Sensing</div>
+      <h3>Hyperspectral Image Unmixing</h3>
+      <p>
+        Satellite sensors capture images with hundreds of spectral bands. Each pixel is a mixture 
+        of materials — minerals, vegetation, water, soil. The spectral library (dictionary) can 
+        contain thousands of material signatures. The pipeline clusters materials by type 
+        (e.g., all iron oxides together), compresses each cluster, quickly identifies which 
+        material groups are present, then estimates precise abundances using only those materials. 
+        This makes it feasible to process millions of pixels with massive spectral libraries.
+      </p>
+    </div>
+    <div class="app-details">
+      <div class="detail-cell">
+        <div class="detail-label">Dictionary Size</div>
+        <div class="detail-value">~5,000 spectra <small>→ ~200 compressed</small></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Data Scale</div>
+        <div class="detail-value">Millions of pixels <small>per image</small></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Key Benefit</div>
+        <div class="detail-value">Process entire satellite scenes in minutes, not hours</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== APP 3: NLP ====== -->
+  <div class="app-card theme-rose">
+    <div class="app-card-top">
+      <div class="app-icon">📝</div>
+      <div class="domain">Natural Language Processing</div>
+      <h3>Sparse Coding over Massive Embedding Dictionaries</h3>
+      <p>
+        In NLP, you might represent documents as sparse combinations of "topic atoms" learned 
+        from a corpus. When the vocabulary and topic space are large (e.g., multilingual models 
+        with 200,000+ embedding vectors), sparse coding becomes a bottleneck. The pipeline 
+        clusters embeddings by semantic similarity, compresses each semantic group, selects 
+        which topic clusters are relevant to a given document, then refines within those clusters. 
+        This enables real-time topic decomposition on large vocabularies.
+      </p>
+    </div>
+    <div class="app-details">
+      <div class="detail-cell">
+        <div class="detail-label">Dictionary Size</div>
+        <div class="detail-value">200,000+ embeddings <small>→ ~1,000 compressed</small></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Application</div>
+        <div class="detail-value">Real-time document routing &amp; topic tagging</div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Key Benefit</div>
+        <div class="detail-value">Sparse topic inference at serving-time latency</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== APP 4: MRI ====== -->
+  <div class="app-card theme-emerald">
+    <div class="app-card-top">
+      <div class="app-icon">🫀</div>
+      <div class="domain">Medical Imaging</div>
+      <h3>Compressed Sensing MRI Reconstruction</h3>
+      <p>
+        MRI scans are slow because the machine needs many measurements. Compressed sensing lets you 
+        take fewer measurements and reconstruct the image using sparsity. The dictionary of image 
+        patches can be enormous — tens of thousands of learned atoms from training data. The pipeline 
+        clusters atoms by visual pattern type (edges, textures, smooth regions), compresses each 
+        group, quickly screens which pattern types appear in each patch, then reconstructs at full 
+        fidelity. This enables faster MRI scans with diagnostic-quality images.
+      </p>
+    </div>
+    <div class="app-details">
+      <div class="detail-cell">
+        <div class="detail-label">Dictionary Size</div>
+        <div class="detail-value">~20,000 patches <small>→ ~400 compressed</small></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Scan Time</div>
+        <div class="detail-value">4–8× fewer measurements <small>needed</small></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Key Benefit</div>
+        <div class="detail-value">Shorter scans for patients; same image quality</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== APP 5: Audio ====== -->
+  <div class="app-card theme-violet">
+    <div class="app-card-top">
+      <div class="app-icon">🎵</div>
+      <div class="domain">Audio Processing</div>
+      <h3>Sound Source Separation &amp; Denoising</h3>
+      <p>
+        Separating overlapping speakers or instruments requires representing audio as a sparse 
+        combination of spectral atoms. Universal audio dictionaries — trained across many instruments, 
+        speakers, and noise types — can contain 50,000+ atoms. The pipeline clusters atoms by source 
+        type (speech, guitar, drums, ambient noise), compresses each, identifies which source 
+        categories are present in a given mixture, then reconstructs each source at full spectral 
+        resolution. This powers real-time audio separation in noisy environments.
+      </p>
+    </div>
+    <div class="app-details">
+      <div class="detail-cell">
+        <div class="detail-label">Dictionary Size</div>
+        <div class="detail-value">~50,000 spectral atoms <small>→ ~600 compressed</small></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Latency</div>
+        <div class="detail-value">&lt;10ms per frame <small>real-time capable</small></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Key Benefit</div>
+        <div class="detail-value">Live noise cancellation &amp; source separation</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== APP 6: Radar ====== -->
+  <div class="app-card theme-orange">
+    <div class="app-card-top">
+      <div class="app-icon">📡</div>
+      <div class="domain">Radar &amp; Communications</div>
+      <h3>Sparse Target Detection in Radar</h3>
+      <p>
+        Radar systems need to detect targets (aircraft, vehicles, drones) across a huge grid of 
+        possible positions, velocities, and angles. Each grid point is a dictionary atom — the 
+        expected radar return from a target at that location. The grid can have millions of cells. 
+        The pipeline clusters atoms by spatial sector, compresses each sector's response patterns, 
+        quickly identifies which sectors contain targets, then resolves exact positions within 
+        those sectors. This enables fast detection over wide surveillance areas.
+      </p>
+    </div>
+    <div class="app-details">
+      <div class="detail-cell">
+        <div class="detail-label">Dictionary Size</div>
+        <div class="detail-value">1M+ grid cells <small>→ ~2,000 compressed</small></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Update Rate</div>
+        <div class="detail-value">Real-time at radar PRF <small>(pulse repetition freq)</small></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">Key Benefit</div>
+        <div class="detail-value">Wide-area surveillance without compute bottlenecks</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== WHY IT WORKS ====== -->
+  <div class="why-box">
+    <h3>Why This Pipeline Works Across All These Domains</h3>
+    <p style="color: var(--text); margin-bottom: 8px;">
+      Every application above shares the same structural pattern: a huge dictionary where only 
+      a few groups of atoms matter for any given signal. The pipeline exploits this with four ideas:
+    </p>
+    <div class="why-grid">
+      <div class="why-item">
+        <div class="why-icon">⚡</div>
+        <div class="why-item-text">
+          <h4>Clustering</h4>
+          <p>Groups similar atoms so you can reason about entire regions, not individual atoms.</p>
+        </div>
+      </div>
+      <div class="why-item">
+        <div class="why-icon">📐</div>
+        <div class="why-item-text">
+          <h4>Low-Rank Compression</h4>
+          <p>Replaces thousands of atoms with a handful of basis vectors per cluster via SVD.</p>
+        </div>
+      </div>
+      <div class="why-item">
+        <div class="why-icon">📊</div>
+        <div class="why-item-text">
+          <h4>Error Correction</h4>
+          <p>Models compression residuals statistically so lossy compression doesn't bias results.</p>
+        </div>
+      </div>
+      <div class="why-item">
+        <div class="why-icon">🎯</div>
+        <div class="why-item-text">
+          <h4>Group Sparsity</h4>
+          <p>Selects relevant clusters cheaply, then solves the small remaining problem exactly.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Compressed Dictionary Learning — Applications &amp; Examples
+</footer>
+
+</body>
+</html>

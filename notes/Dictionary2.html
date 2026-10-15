@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compressed Dictionary Methods for Inverse Problems</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,300;0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf8f5;
+    --fg: #1a1a1a;
+    --accent: #b44a2f;
+    --accent2: #2a6b5a;
+    --muted: #6b6259;
+    --border: #ddd5ca;
+    --card: #ffffff;
+    --highlight: #fff8e7;
+    --step-bg: #f2efea;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Source Serif 4', Georgia, serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.75;
+    font-size: 17px;
+    padding: 0;
+  }
+
+  .container {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 60px 32px 100px;
+  }
+
+  /* Header */
+  header {
+    margin-bottom: 56px;
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 32px;
+  }
+
+  header h1 {
+    font-size: 2.1em;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--fg);
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+
+  header .subtitle {
+    font-size: 1.05em;
+    color: var(--muted);
+    font-style: italic;
+    font-weight: 300;
+  }
+
+  /* Section */
+  section {
+    margin-bottom: 52px;
+  }
+
+  h2 {
+    font-size: 1.45em;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 18px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h3 {
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--accent2);
+    margin: 28px 0 10px;
+  }
+
+  p { margin-bottom: 16px; }
+
+  /* Equation blocks */
+  .eq-block {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    padding: 20px 24px;
+    margin: 20px 0 24px;
+    border-radius: 0 6px 6px 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  .eq-block.accent2 {
+    border-left-color: var(--accent2);
+  }
+
+  .eq-block .eq-label {
+    display: block;
+    font-size: 0.78em;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 10px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Intuition boxes */
+  .intuition {
+    background: var(--highlight);
+    border: 1px solid #e8dbb8;
+    border-radius: 6px;
+    padding: 18px 22px;
+    margin: 18px 0 24px;
+    font-style: italic;
+    color: #5a4e30;
+  }
+
+  .intuition::before {
+    content: "Intuition → ";
+    font-weight: 600;
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  /* Step cards */
+  .step-card {
+    background: var(--step-bg);
+    border-radius: 8px;
+    padding: 28px 28px 20px;
+    margin: 28px 0;
+    border: 1px solid var(--border);
+    position: relative;
+  }
+
+  .step-card .step-number {
+    position: absolute;
+    top: -14px;
+    left: 24px;
+    background: var(--accent);
+    color: white;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8em;
+    font-weight: 500;
+    padding: 3px 14px;
+    border-radius: 12px;
+    letter-spacing: 0.5px;
+  }
+
+  .step-card h3 {
+    margin-top: 6px;
+    color: var(--fg);
+    font-size: 1.15em;
+  }
+
+  /* Comparison table */
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 20px 0;
+  }
+
+  .comparison .col {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 20px;
+  }
+
+  .comparison .col.bad { border-top: 3px solid #c44; }
+  .comparison .col.good { border-top: 3px solid var(--accent2); }
+
+  .comparison .col h4 {
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .comparison .col.bad h4 { color: #c44; }
+  .comparison .col.good h4 { color: var(--accent2); }
+
+  /* Summary box */
+  .summary-box {
+    background: linear-gradient(135deg, #2a6b5a11, #b44a2f11);
+    border: 2px solid var(--accent2);
+    border-radius: 8px;
+    padding: 28px;
+    margin: 32px 0;
+  }
+
+  .summary-box h3 {
+    color: var(--accent2);
+    margin-top: 0;
+    font-size: 1.2em;
+  }
+
+  /* Inline code */
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88em;
+    background: #eee8df;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+
+  /* Flow diagram */
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 24px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+  }
+
+  .flow .node {
+    background: var(--card);
+    border: 2px solid var(--accent2);
+    border-radius: 8px;
+    padding: 10px 16px;
+    text-align: center;
+    color: var(--accent2);
+    font-weight: 500;
+  }
+
+  .flow .arrow {
+    color: var(--muted);
+    font-size: 1.2em;
+  }
+
+  /* KaTeX display tweaks */
+  .katex-display { margin: 8px 0 !important; }
+  .katex { font-size: 1.08em; }
+
+  @media (max-width: 600px) {
+    .container { padding: 32px 18px 60px; }
+    header h1 { font-size: 1.6em; }
+    .comparison { grid-template-columns: 1fr; }
+    .flow { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>Compressed Dictionary Methods for Inverse Problems</h1>
+  <div class="subtitle">Cluster → Compress → Select → Solve: making huge dictionaries tractable</div>
+</header>
+
+<!-- ============ THE PROBLEM ============ -->
+<section>
+  <h2>The Problem</h2>
+  <p>
+    In applications like MEG source localization, MRI fingerprinting, and hyperspectral imaging, we model observed data as a linear combination of "atoms" from a dictionary:
+  </p>
+
+  <div class="eq-block">
+    <span class="eq-label">Forward model</span>
+    $$\mathbf{b} = D\mathbf{x} + \boldsymbol{\epsilon}$$
+  </div>
+
+  <p>
+    where \(D \in \mathbb{R}^{n \times p}\) is the dictionary (each column \(\mathbf{d}_j\) is an atom),
+    \(\mathbf{x} \in \mathbb{R}^{p}\) is a sparse coefficient vector, and
+    \(\boldsymbol{\epsilon}\) is noise. The problem: \(p\) can be enormous (hundreds of thousands of atoms), making standard sparse solvers too expensive. We need a way to <em>compress</em> the dictionary without throwing away important structure.
+  </p>
+
+  <div class="flow">
+    <div class="node">Huge dictionary D</div>
+    <div class="arrow">→</div>
+    <div class="node">Cluster atoms</div>
+    <div class="arrow">→</div>
+    <div class="node">Compress each cluster</div>
+    <div class="arrow">→</div>
+    <div class="node">Select active clusters</div>
+    <div class="arrow">→</div>
+    <div class="node">Solve reduced problem</div>
+  </div>
+</section>
+
+<!-- ============ STEP 1 ============ -->
+<section>
+  <div class="step-card">
+    <div class="step-number">Step 1</div>
+    <h3>Partition the Dictionary into Clusters</h3>
+    <p>
+      Split the \(p\) columns of \(D\) into \(L\) groups of similar atoms:
+    </p>
+    <div class="eq-block">
+      $$D = \begin{bmatrix} D^{(1)} & D^{(2)} & \cdots & D^{(L)} \end{bmatrix}$$
+    </div>
+    <p>
+      where \(D^{(\ell)} \in \mathbb{R}^{n \times p_\ell}\) and the group sizes sum to the total: \(\sum_{\ell=1}^{L} p_\ell = p\).
+    </p>
+    <p>
+      Clustering can be <strong>supervised</strong> (e.g., group dipoles by brain region in MEG) or <strong>unsupervised</strong> (k-means or k-medoids on the columns of \(D\)).
+    </p>
+    <div class="intuition">
+      Atoms in the same cluster point in roughly the same direction in \(\mathbb{R}^n\). That means each cluster \(D^{(\ell)}\) lives near a low-dimensional subspace — which is exactly what we'll exploit next.
+    </div>
+  </div>
+</section>
+
+<!-- ============ STEP 2 ============ -->
+<section>
+  <div class="step-card">
+    <div class="step-number">Step 2</div>
+    <h3>Low-Rank Compression of Each Cluster</h3>
+    <p>
+      Because similar atoms span a low-dimensional subspace, we approximate each cluster with a rank-\(k_\ell\) factorization:
+    </p>
+    <div class="eq-block">
+      <span class="eq-label">Low-rank decomposition</span>
+      $$D^{(\ell)} = W^{(\ell)} H^{(\ell)} + E^{(\ell)}$$
+    </div>
+    <p>where:</p>
+    <p>
+      \(W^{(\ell)} \in \mathbb{R}^{n \times k_\ell}\) — the <strong>basis</strong> for the subspace (like principal components)<br>
+      \(H^{(\ell)} \in \mathbb{R}^{k_\ell \times p_\ell}\) — the <strong>coefficients</strong> of each atom in that basis<br>
+      \(E^{(\ell)} \in \mathbb{R}^{n \times p_\ell}\) — the <strong>approximation error</strong><br>
+      \(k_\ell \ll p_\ell\) — huge compression
+    </p>
+    <p>
+      In practice, this factorization comes from truncated SVD (equivalently PCA) of \(D^{(\ell)}\). Keep the top \(k_\ell\) singular vectors.
+    </p>
+    <div class="intuition">
+      Instead of storing all \(p_\ell\) atoms (columns), we store just \(k_\ell\) basis vectors. Each original atom is approximately a short linear combination of these basis vectors. This is just PCA applied to each cluster.
+    </div>
+  </div>
+</section>
+
+<!-- ============ STEP 3 ============ -->
+<section>
+  <div class="step-card">
+    <div class="step-number">Step 3</div>
+    <h3>Assemble the Global Compressed Dictionary</h3>
+    <p>
+      Stack all the cluster bases side by side, and arrange the coefficient matrices block-diagonally:
+    </p>
+    <div class="eq-block">
+      <span class="eq-label">Block structure</span>
+      $$D \;\approx\; \underbrace{\begin{bmatrix} W^{(1)} & \cdots & W^{(L)} \end{bmatrix}}_{W} \;\underbrace{\begin{bmatrix} H^{(1)} & & \\ & \ddots & \\ & & H^{(L)} \end{bmatrix}}_{H}$$
+    </div>
+    <p>
+      So the full dictionary factors as:
+    </p>
+    <div class="eq-block accent2">
+      $$D = WH + E$$
+    </div>
+    <p>
+      where \(W \in \mathbb{R}^{n \times K}\) with \(K = \sum k_\ell \ll p\), and \(H\) is block-diagonal.
+      The original problem \(\mathbf{b} \approx D\mathbf{x}\) becomes \(\mathbf{b} \approx W(H\mathbf{x})\). If we define \(\mathbf{h} = H\mathbf{x}\), we're solving in a much smaller \(K\)-dimensional space.
+    </p>
+  </div>
+</section>
+
+<!-- ============ STEP 4 ============ -->
+<section>
+  <div class="step-card">
+    <div class="step-number">Step 4</div>
+    <h3>Model the Compression Error Statistically</h3>
+    <p>
+      The compression isn't perfect. Each atom has a residual:
+    </p>
+    <div class="eq-block">
+      $$\mathbf{d}_j = W\mathbf{h}_j + \mathbf{e}_j$$
+    </div>
+    <p>
+      The key insight: don't ignore these errors — <strong>model them as a random variable</strong>. Collect all \(p\) error vectors and compute their sample statistics:
+    </p>
+    <div class="eq-block">
+      <span class="eq-label">Error statistics</span>
+      $$\boldsymbol{\mu}_{\text{DCE}} = \frac{1}{p}\sum_{j=1}^{p}\mathbf{e}_j$$
+    </div>
+    <div class="eq-block accent2">
+      <span class="eq-label">Error covariance</span>
+      $$C_{\text{DCE}} = \frac{1}{p-1}\sum_{j=1}^{p}(\mathbf{e}_j - \boldsymbol{\mu}_{\text{DCE}})(\mathbf{e}_j - \boldsymbol{\mu}_{\text{DCE}})^\top + \epsilon I$$
+    </div>
+    <p>
+      The \(\epsilon I\) term is Tikhonov regularization — it ensures \(C_{\text{DCE}}\) is invertible even when \(n > p\).
+    </p>
+    <p>
+      We then assume a Gaussian model for the error:
+    </p>
+    <div class="eq-block">
+      $$\mathbf{e} \sim \mathcal{N}\!\left(\boldsymbol{\mu}_{\text{DCE}},\; C_{\text{DCE}}\right)$$
+    </div>
+    <div class="intuition">
+      The compression error isn't just white noise — it has structure (direction, spread). By estimating its covariance, we can "correct" for the compression when solving. This is the same idea as generalized least squares in econometrics.
+    </div>
+
+    <h3>The Resulting Likelihood</h3>
+    <p>
+      Instead of minimizing a plain squared error, we get a <strong>covariance-weighted</strong> objective. The likelihood of observing \(\mathbf{b}\) given coefficients \(\mathbf{h}\) is:
+    </p>
+    <div class="eq-block">
+      <span class="eq-label">Gaussian likelihood</span>
+      $$p(\mathbf{b}\mid\mathbf{h}) \propto \exp\!\left(-\tfrac{1}{2}(\mathbf{b} - W\mathbf{h} - \boldsymbol{\mu}_{\text{DCE}})^\top C_{\text{DCE}}^{-1}(\mathbf{b} - W\mathbf{h} - \boldsymbol{\mu}_{\text{DCE}})\right)$$
+    </div>
+    <p>
+      Maximizing this likelihood (equivalently, minimizing the negative log) gives the objective:
+    </p>
+    <div class="eq-block accent2">
+      <span class="eq-label">Mahalanobis objective</span>
+      $$\min_{\mathbf{h}} \;\left\|\mathbf{b} - W\mathbf{h} - \boldsymbol{\mu}_{\text{DCE}}\right\|_{C_{\text{DCE}}^{-1}}^{2}$$
+    </div>
+
+    <div class="comparison">
+      <div class="col bad">
+        <h4>Naïve (ignore error)</h4>
+        <p>$$\min_{\mathbf{h}} \|\mathbf{b} - W\mathbf{h}\|_2^2$$</p>
+        <p>Treats all directions equally. Biased by systematic compression error.</p>
+      </div>
+      <div class="col good">
+        <h4>Covariance-corrected</h4>
+        <p>$$\min_{\mathbf{h}} \|\mathbf{b} - W\mathbf{h}\|_{C^{-1}}^2$$</p>
+        <p>Down-weights directions where compression error is large. Unbiased.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STEP 5 ============ -->
+<section>
+  <div class="step-card">
+    <div class="step-number">Step 5</div>
+    <h3>Select Active Clusters (Group Sparsity)</h3>
+    <p>
+      Not all \(L\) clusters are needed. We assume only a few clusters \(j_1, \dots, j_r\) (with \(r \ll L\)) are active:
+    </p>
+    <div class="eq-block">
+      <span class="eq-label">Sparse cluster selection</span>
+      $$\mathbf{b} \approx W^{(j_1)}\mathbf{h}^{(j_1)} + W^{(j_2)}\mathbf{h}^{(j_2)} + \cdots + W^{(j_r)}\mathbf{h}^{(j_r)} + \boldsymbol{\epsilon}'$$
+    </div>
+    <p>
+      This is <strong>group sparsity</strong>: entire clusters are either "on" or "off." Selection can be done greedily (like group OMP) or via group Lasso-type penalties.
+    </p>
+    <div class="intuition">
+      In MEG, this means: out of 50 brain regions, maybe only 3 are active during a task. We find those 3 in the compressed space cheaply, then refine.
+    </div>
+  </div>
+</section>
+
+<!-- ============ STEP 6 ============ -->
+<section>
+  <div class="step-card">
+    <div class="step-number">Step 6</div>
+    <h3>Solve in Original Space (Selected Clusters Only)</h3>
+    <p>
+      Having identified the \(r\) active clusters, go back to the <em>original</em> atoms in those clusters and solve the full-resolution problem:
+    </p>
+    <div class="eq-block">
+      <span class="eq-label">Final reconstruction</span>
+      $$\mathbf{b} = D^{(j_1)}\mathbf{x}^{(j_1)} + \cdots + D^{(j_r)}\mathbf{x}^{(j_r)} + \tilde{\boldsymbol{\epsilon}}$$
+    </div>
+    <p>
+      Now you only solve over \(p_{j_1} + \cdots + p_{j_r}\) atoms instead of all \(p\). This is a much smaller problem — standard sparse solvers (OMP, LASSO, etc.) work fine here.
+    </p>
+  </div>
+</section>
+
+<!-- ============ SUMMARY ============ -->
+<section>
+  <div class="summary-box">
+    <h3>Putting It All Together</h3>
+    <p>The full pipeline in equations:</p>
+
+    <div class="eq-block" style="border-left-color: var(--accent2); text-align: left; line-height: 2.2;">
+      $$\begin{aligned}
+      &\textbf{1. Partition:} & D &= \begin{bmatrix} D^{(1)} & \cdots & D^{(L)} \end{bmatrix} \\[6pt]
+      &\textbf{2. Compress:} & D^{(\ell)} &\approx W^{(\ell)}H^{(\ell)} \quad \text{via truncated SVD} \\[6pt]
+      &\textbf{3. Stack:} & D &\approx WH, \quad W \in \mathbb{R}^{n \times K},\; K \ll p \\[6pt]
+      &\textbf{4. Error model:} & \mathbf{e} &\sim \mathcal{N}(\boldsymbol{\mu}_{\text{DCE}},\, C_{\text{DCE}}) \\[6pt]
+      &\textbf{5. Select:} & \mathbf{b} &\approx \sum_{i=1}^{r} W^{(j_i)}\mathbf{h}^{(j_i)} \quad (r \ll L) \\[6pt]
+      &\textbf{6. Solve:} & \mathbf{b} &\approx \sum_{i=1}^{r} D^{(j_i)}\mathbf{x}^{(j_i)} \quad \text{(full resolution, small problem)}
+      \end{aligned}$$
+    </div>
+
+    <p style="margin-top: 18px;">
+      The method combines four powerful ideas: <strong>clustering</strong> (group similar atoms), <strong>low-rank approximation</strong> (compress each group via SVD), <strong>statistical error modeling</strong> (Gaussian model of compression residuals → Mahalanobis-weighted fitting), and <strong>group sparsity</strong> (select only relevant clusters). The result: solving a problem with \(p = 100{,}000\) atoms at the cost of working with \(K \approx 500\) compressed dimensions — orders of magnitude faster, with principled error correction.
+    </p>
+  </div>
+</section>
+
+</div>
+
+<script>
+  renderMathInElement(document.body, {
+    delimiters: [
+      {left: "$$", right: "$$", display: true},
+      {left: "\\(", right: "\\)", display: false}
+    ],
+    throwOnError: false
+  });
+</script>
+</body>
+</html>

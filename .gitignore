@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Model weights / large binaries
+*.pt
+*.pth
+*.ckpt
+*.mat
+
+# LaTeX build
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+
+# Benchmark scratch output
+outputs/
+
+# OS
+.DS_Store

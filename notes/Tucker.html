@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tucker Decomposition for Dictionary Compression</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0d11;
+  --s1: #12151d;
+  --s2: #181c28;
+  --brd: #212840;
+  --brd-h: #2f3a5a;
+  --sky: #38bdf8;
+  --sky-d: #0c4a6e;
+  --teal: #2dd4bf;
+  --teal-d: #042f2e;
+  --amber: #fbbf24;
+  --amber-d: #451a03;
+  --rose: #fb7185;
+  --rose-d: #4c0519;
+  --indigo: #818cf8;
+  --indigo-d: #1e1b4b;
+  --txt: #e2e8f0;
+  --dim: #8896b3;
+  --mut: #4f5d7a;
+  --r: 14px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--txt);line-height:1.75;font-weight:300;overflow-x:hidden}
+
+.wrap{max-width:980px;margin:0 auto;padding:0 2rem}
+section{padding:5.5rem 0}
+
+h1,h2,h3{font-family:'Instrument Serif',serif;color:#fff}
+h2{font-size:clamp(2rem,4.5vw,3rem);margin-bottom:1.2rem}
+h3{font-size:1.15rem;margin-bottom:.5rem}
+p{color:var(--dim);margin-bottom:1.1rem}
+p strong{color:var(--txt);font-weight:500}
+em{font-family:'Instrument Serif',serif;font-style:italic;color:var(--txt)}
+
+.mono{font-family:'JetBrains Mono',monospace}
+.label{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;padding:4px 11px;border-radius:100px;margin-bottom:1.3rem}
+.bar{width:48px;height:3px;border-radius:3px;margin-bottom:1.3rem}
+
+/* scroll anim */
+.rv{opacity:0;transform:translateY(26px);transition:opacity .65s ease,transform .65s ease}
+.rv.v{opacity:1;transform:translateY(0)}
+
+/* ═══ HERO ═══ */
+.hero{min-height:100vh;display:flex;align-items:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;width:700px;height:700px;top:-25%;left:-12%;background:radial-gradient(circle,rgba(56,189,248,.07),transparent 70%);pointer-events:none;animation:drift 14s ease-in-out infinite alternate}
+.hero::after{content:'';position:absolute;width:500px;height:500px;bottom:-20%;right:-8%;background:radial-gradient(circle,rgba(45,212,191,.06),transparent 70%);pointer-events:none;animation:drift 12s ease-in-out infinite alternate-reverse}
+@keyframes drift{0%{transform:translate(0) scale(1)}100%{transform:translate(25px,-18px) scale(1.1)}}
+
+.hero-inner{position:relative;z-index:1}
+.hero h1{font-size:clamp(2.6rem,6.5vw,5rem);line-height:1.08;margin-bottom:1.4rem;animation:fu .8s ease both}
+.hero h1 .g{background:linear-gradient(135deg,var(--sky),var(--teal));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font-size:1.15rem;max-width:660px;margin-bottom:2rem;animation:fu .8s .12s ease both}
+@keyframes fu{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+
+/* ═══ CARDS ═══ */
+.card-grid{display:grid;gap:1.2rem;margin:2rem 0}
+.card-grid.c2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.card-grid.c3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+
+.card{background:var(--s1);border:1px solid var(--brd);border-radius:var(--r);padding:2rem;transition:border-color .3s,transform .3s}
+.card:hover{border-color:var(--brd-h);transform:translateY(-3px)}
+.card-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.15rem;margin-bottom:.85rem}
+.card p{font-size:.9rem;margin:0}
+
+/* ═══ EQUATION BOX ═══ */
+.eq-box{background:var(--s1);border:1px solid var(--brd);border-radius:var(--r);padding:2.5rem;margin:2rem 0;text-align:center;position:relative;overflow:hidden}
+.eq-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.eq-box .el{font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.15em;text-transform:uppercase;margin-bottom:1rem}
+.eq-box .eq{font-family:'Instrument Serif',serif;font-size:clamp(1.1rem,2.5vw,1.6rem);color:#fff;line-height:2}
+.eq .c-sky{color:var(--sky)}.eq .c-teal{color:var(--teal)}.eq .c-amber{color:var(--amber)}.eq .c-rose{color:var(--rose)}.eq .c-indigo{color:var(--indigo)}
+.eq-note{display:flex;justify-content:center;flex-wrap:wrap;gap:1.4rem;margin-top:1rem}
+.eq-note span{font-size:.8rem;color:var(--dim);display:flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+/* ═══ FLOW DIAGRAM ═══ */
+.flow{display:flex;align-items:stretch;gap:0;margin:2.5rem 0}
+.flow-step{flex:1;padding:1.75rem 1.25rem;text-align:center;background:var(--s1);border:1px solid var(--brd);transition:all .3s}
+.flow-step:first-child{border-radius:var(--r) 0 0 var(--r)}
+.flow-step:last-child{border-radius:0 var(--r) var(--r) 0}
+.flow-step:hover{background:var(--s2);z-index:2;transform:scale(1.03);border-color:var(--brd-h)}
+.flow-step .fs-label{font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;margin-bottom:.6rem}
+.flow-step h3{font-size:1rem;margin-bottom:.4rem}
+.flow-step p{font-size:.82rem;margin:0}
+.flow-arr{display:flex;align-items:center;color:var(--mut);font-size:1.3rem;margin:0 -5px;z-index:3}
+@media(max-width:768px){.flow{flex-direction:column;gap:.8rem}.flow-step{border-radius:var(--r)!important}.flow-arr{justify-content:center;transform:rotate(90deg);margin:-5px 0}}
+
+/* ═══ COMPARISON TABLE ═══ */
+table.cmp{width:100%;border-collapse:separate;border-spacing:0;border-radius:var(--r);overflow:hidden;border:1px solid var(--brd);margin:2rem 0}
+table.cmp th,table.cmp td{padding:.9rem 1.2rem;text-align:left;border-bottom:1px solid var(--brd);font-size:.9rem}
+table.cmp th{background:var(--s1);font-weight:600;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+table.cmp td{color:var(--dim)}
+table.cmp tr:last-child td{border-bottom:none}
+table.cmp tr:hover td{background:var(--s1)}
+.tag{display:inline-block;font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:6px}
+.tag.svd{background:var(--amber-d);color:var(--amber)}
+.tag.tuck{background:var(--sky-d);color:var(--sky)}
+
+/* ═══ STEP CARDS ═══ */
+.step-num{font-family:'JetBrains Mono',monospace;font-size:2rem;font-weight:500;color:var(--sky-d);line-height:1;margin-bottom:.4rem}
+
+/* ═══ BARS ═══ */
+.bar-grp{margin-bottom:2rem}
+.bar-grp-t{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--mut);text-transform:uppercase;letter-spacing:.12em;margin-bottom:.7rem}
+.bar-row{display:flex;align-items:center;gap:1rem;margin-bottom:.5rem}
+.bar-lbl{width:130px;font-size:.83rem;font-weight:500;text-align:right;flex-shrink:0}
+.bar-trk{flex:1;height:28px;background:var(--s1);border-radius:8px;overflow:hidden}
+.bar-f{height:100%;border-radius:8px;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;font-family:'JetBrains Mono',monospace;font-size:.7rem;font-weight:500;color:#fff;transition:width 1.4s cubic-bezier(.22,1,.36,1);width:0}
+.bar-f.v{width:var(--w)}
+.bar-f.old{background:linear-gradient(90deg,#374151,#6b7280)}
+.bar-f.new{background:linear-gradient(90deg,var(--sky-d),var(--sky))}
+.bar-f.kron{background:linear-gradient(90deg,var(--teal-d),var(--teal))}
+
+/* ═══ CODE ═══ */
+.code{background:var(--s1);border:1px solid var(--brd);border-radius:var(--r);padding:1.6rem 1.8rem;margin:2rem 0;overflow-x:auto}
+.code pre{font-family:'JetBrains Mono',monospace;font-size:.8rem;line-height:1.7;color:var(--dim)}
+.code .cm{color:var(--mut)}.code .kw{color:var(--indigo)}.code .fn{color:var(--sky)}.code .st{color:var(--teal)}.code .nu{color:var(--amber)}
+
+/* ═══ FOOTER ═══ */
+footer{max-width:980px;margin:0 auto;padding:3rem 2rem 4rem;border-top:1px solid var(--brd);color:var(--mut);font-size:.76rem}
+</style>
+</head>
+<body>
+
+<!-- ═══════ HERO ═══════ -->
+<header class="hero">
+  <div class="wrap hero-inner">
+    <h1>Compressing Dictionaries<br>with <span class="g">Tucker Decomposition</span></h1>
+    <p class="hero-sub">
+      K-SVD uses SVD to update dictionary atoms one at a time — as flat vectors. Tucker replaces that step by treating dictionary atoms as tensors, factoring them into compact Kronecker-structured sub-dictionaries that are orders of magnitude smaller.
+    </p>
+  </div>
+</header>
+
+<!-- ═══════ WHAT IS A DICTIONARY ═══════ -->
+<section>
+<div class="wrap">
+  <div class="rv">
+    <div class="bar" style="background:linear-gradient(90deg,var(--amber),var(--rose))"></div>
+    <h2>Dictionary Learning, Quick Refresher</h2>
+    <p>
+      In sparse coding, a <strong>dictionary</strong> D is a matrix whose columns (called <em>atoms</em>) serve as building blocks. Any signal <strong>x</strong> can be approximated as a sparse combination of atoms: <strong>x ≈ D·α</strong>, where α is mostly zeros.
+    </p>
+  </div>
+
+  <div class="eq-box rv" style="--top:var(--amber)">
+    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--amber),var(--rose))"></div>
+    <div class="el" style="color:var(--amber)">Classic Dictionary Learning (K-SVD)</div>
+    <div class="eq">
+      min<sub>D, Γ</sub>&ensp;
+      <span class="c-amber">‖X − DΓ‖²<sub>F</sub></span>
+      &ensp;s.t.&ensp;
+      <span class="c-rose">‖γᵢ‖₀ ≤ T</span>&ensp;∀i
+    </div>
+    <div class="eq-note">
+      <span><span class="dot" style="background:var(--amber)"></span> Reconstruction error</span>
+      <span><span class="dot" style="background:var(--rose)"></span> Sparsity constraint per signal</span>
+    </div>
+  </div>
+
+  <p class="rv">
+    The classic approach (K-SVD) alternates between <strong>sparse coding</strong> (find sparse α given D) and <strong>dictionary update</strong> (fix α, update D column-by-column using SVD). Every atom is a flat vector of length <em>n</em>, and the full dictionary is an <em>n × K</em> matrix with K atoms. For large patches or high-dimensional data, this dictionary becomes enormous.
+  </p>
+
+  <div class="card-grid c3 rv">
+    <div class="card">
+      <div class="card-icon" style="background:var(--amber-d)">📐</div>
+      <h3>Atom = flat vector</h3>
+      <p>An 8×8 image patch is reshaped to a 64×1 vector. A 16×16×3 color patch → 768×1 vector. All 2D/3D structure is destroyed.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon" style="background:var(--rose-d)">💾</div>
+      <h3>Storage blows up</h3>
+      <p>Dictionary of 512 atoms for 16×16 patches: 131,072 parameters. For 32×32: over 500K. For 3D/video patches: millions.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon" style="background:var(--indigo-d)">🐢</div>
+      <h3>SVD per atom is costly</h3>
+      <p>K-SVD runs a rank-1 SVD for each of K atoms per iteration. This is O(K·n·N) per outer loop — slow for large n.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════ THE KEY INSIGHT ═══════ -->
+<section style="padding-top:0">
+<div class="wrap">
+  <div class="rv">
+    <div class="bar" style="background:linear-gradient(90deg,var(--sky),var(--teal))"></div>
+    <h2>The Key Insight: Atoms Are Tensors</h2>
+    <p>
+      An 8×8 image patch isn't really a length-64 vector — it's a <strong>2D matrix</strong>. A color image patch is <strong>3D</strong>. A video patch is <strong>4D</strong>. When K-SVD vectorizes these, it ignores the multi-way structure. Tucker decomposition keeps it.
+    </p>
+  </div>
+
+  <div class="flow rv">
+    <div class="flow-step">
+      <div class="fs-label" style="color:var(--amber)">K-SVD approach</div>
+      <h3>Vectorize</h3>
+      <p>Flatten 8×8 patch to 64×1 vector. Dictionary atom = vector.</p>
+    </div>
+    <div class="flow-arr">→</div>
+    <div class="flow-step">
+      <div class="fs-label" style="color:var(--amber)">Then</div>
+      <h3>SVD update</h3>
+      <p>Rank-1 SVD on residual matrix to update each atom.</p>
+    </div>
+    <div class="flow-arr">→</div>
+    <div class="flow-step" style="border-color:var(--brd-h)">
+      <div class="fs-label" style="color:var(--sky)">Tucker approach</div>
+      <h3>Keep as tensor</h3>
+      <p>Atom stays 8×8 (or 8×8×3). Factor it as a Kronecker product of small matrices.</p>
+    </div>
+  </div>
+
+  <div class="eq-box rv">
+    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--sky),var(--teal))"></div>
+    <div class="el" style="color:var(--sky)">Kronecker-Structured (Separable) Dictionary</div>
+    <div class="eq">
+      <span class="c-sky">D</span> =
+      <span class="c-teal">D<sup>(1)</sup></span> ⊗
+      <span class="c-indigo">D<sup>(2)</sup></span>
+      <span style="color:var(--dim);font-size:.9em">&ensp;(⊗ = Kronecker product)</span>
+    </div>
+    <div class="eq-note">
+      <span><span class="dot" style="background:var(--sky)"></span> Full dictionary (n₁n₂ × K₁K₂)</span>
+      <span><span class="dot" style="background:var(--teal)"></span> Mode-1 sub-dictionary (n₁ × K₁)</span>
+      <span><span class="dot" style="background:var(--indigo)"></span> Mode-2 sub-dictionary (n₂ × K₂)</span>
+    </div>
+  </div>
+
+  <p class="rv">
+    This is exactly the Tucker model applied to dictionary atoms. Because Tucker decomposes a tensor as a core multiplied by factor matrices along each mode, the <strong>dictionary inherits a Kronecker product structure</strong>. Each atom can be written as an outer product of small sub-atoms, and the core tensor captures how they combine. Instead of storing an enormous flat dictionary, you store small sub-dictionaries per mode — a massive compression.
+  </p>
+</div>
+</section>
+
+<!-- ═══════ HOW IT WORKS ═══════ -->
+<section>
+<div class="wrap">
+  <div class="rv">
+    <div class="bar" style="background:linear-gradient(90deg,var(--teal),var(--indigo))"></div>
+    <h2>How Tucker Replaces SVD in Dictionary Learning</h2>
+  </div>
+
+  <div class="card-grid c2 rv">
+    <div class="card" style="border-top:3px solid var(--amber)">
+      <h3>🔶 Standard K-SVD</h3>
+      <p style="margin-bottom:.8rem">For each atom k = 1…K:</p>
+      <p style="margin-bottom:.4rem"><strong>1.</strong> Compute residual error matrix E<sub>k</sub></p>
+      <p style="margin-bottom:.4rem"><strong>2.</strong> Run rank-1 <strong>SVD</strong> on E<sub>k</sub></p>
+      <p style="margin-bottom:.4rem"><strong>3.</strong> Update atom d<sub>k</sub> = first left singular vector</p>
+      <p><strong>4.</strong> Update coefficients from first singular value × right vector</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--sky)">
+      <h3>🔷 Tucker Dictionary Learning</h3>
+      <p style="margin-bottom:.8rem">Replace the SVD step with Tucker/HOSVD:</p>
+      <p style="margin-bottom:.4rem"><strong>1.</strong> Keep residual patches as <em>tensors</em> (don't vectorize)</p>
+      <p style="margin-bottom:.4rem"><strong>2.</strong> Run <strong>Tucker decomposition</strong> on the tensor residual</p>
+      <p style="margin-bottom:.4rem"><strong>3.</strong> Factor matrices → sub-dictionaries D<sup>(1)</sup>, D<sup>(2)</sup>, …</p>
+      <p><strong>4.</strong> Core tensor → sparse coefficients across modes</p>
+    </div>
+  </div>
+
+  <div class="card-grid c3 rv" style="margin-top:1.5rem">
+    <div class="card">
+      <div class="step-num">01</div>
+      <h3>Sparse Coding (tensor version)</h3>
+      <p>Use Kronecker-OMP or N-way Block OMP to find sparse coefficients for each tensor signal, exploiting the Kronecker structure for speed.</p>
+    </div>
+    <div class="card">
+      <div class="step-num">02</div>
+      <h3>Tucker Dictionary Update</h3>
+      <p>Instead of one SVD per atom, apply HOSVD/HOOI to the residual tensor. The factor matrices become the sub-dictionaries; the core captures cross-mode interactions.</p>
+    </div>
+    <div class="card">
+      <div class="step-num">03</div>
+      <h3>Iterate</h3>
+      <p>Alternate between tensor sparse coding and Tucker-based dictionary update until convergence. Same K-SVD loop structure, but operating in tensor space.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════ THE MATH ═══════ -->
+<section style="padding-top:0">
+<div class="wrap">
+  <div class="rv">
+    <div class="bar" style="background:linear-gradient(90deg,var(--indigo),var(--rose))"></div>
+    <h2>The Core Equivalence</h2>
+    <p>The critical mathematical connection is that <strong>Tucker decomposition and Kronecker-structured sparse representation are equivalent</strong>. Given a tensor signal 𝒳:</p>
+  </div>
+
+  <div class="eq-box rv">
+    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--indigo),var(--rose))"></div>
+    <div class="el" style="color:var(--indigo)">Tucker ↔ Kronecker Dictionary Equivalence</div>
+    <div class="eq" style="line-height:2.2">
+      <span class="c-indigo">𝒳</span> = <span class="c-teal">𝒢</span> ×₁ <span class="c-sky">U<sup>(1)</sup></span> ×₂ <span class="c-rose">U<sup>(2)</sup></span><br>
+      <span style="color:var(--mut)">⟺</span><br>
+      vec(<span class="c-indigo">𝒳</span>) = (<span class="c-rose">U<sup>(2)</sup></span> ⊗ <span class="c-sky">U<sup>(1)</sup></span>) · vec(<span class="c-teal">𝒢</span>)
+    </div>
+    <div class="eq-note">
+      <span><span class="dot" style="background:var(--indigo)"></span> Signal tensor</span>
+      <span><span class="dot" style="background:var(--teal)"></span> Core = sparse coefficients</span>
+      <span><span class="dot" style="background:var(--sky)"></span><span class="dot" style="background:var(--rose);margin-left:-4px"></span> Factor matrices = sub-dictionaries</span>
+    </div>
+  </div>
+
+  <p class="rv">
+    The vectorized form shows that Tucker's factor matrices <em>are</em> the sub-dictionaries, and the core tensor <em>is</em> the sparse coefficient tensor. Making the core sparse gives you sparse Tucker dictionary learning — and the Kronecker structure means you never need to form or store the full dictionary.
+  </p>
+</div>
+</section>
+
+<!-- ═══════ COMPRESSION NUMBERS ═══════ -->
+<section>
+<div class="wrap">
+  <div class="rv">
+    <div class="bar" style="background:linear-gradient(90deg,var(--sky),var(--amber))"></div>
+    <h2>Compression: The Numbers</h2>
+    <p>Concrete example: dictionary for 16×16 image patches, 256 atoms (overcomplete by 1×).</p>
+  </div>
+
+  <div class="rv" id="bars">
+    <div class="bar-grp">
+      <div class="bar-grp-t">Dictionary Parameters</div>
+      <div class="bar-row">
+        <div class="bar-lbl">K-SVD (flat)</div>
+        <div class="bar-trk"><div class="bar-f old" style="--w:100%">65,536</div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-lbl" style="color:var(--sky)">Kronecker (16×16)</div>
+        <div class="bar-trk"><div class="bar-f new" style="--w:12.5%">8,192</div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-lbl" style="color:var(--teal)">Tucker (rank-8)</div>
+        <div class="bar-trk"><div class="bar-f kron" style="--w:6%">3,584</div></div>
+      </div>
+    </div>
+
+    <div class="bar-grp">
+      <div class="bar-grp-t">For 32×32 color patches (32×32×3), 512 atoms</div>
+      <div class="bar-row">
+        <div class="bar-lbl">K-SVD (flat)</div>
+        <div class="bar-trk"><div class="bar-f old" style="--w:100%">1,572,864</div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-lbl" style="color:var(--sky)">Kronecker 3-way</div>
+        <div class="bar-trk"><div class="bar-f new" style="--w:5%">~73K</div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-lbl" style="color:var(--teal)">Tucker (low-rank)</div>
+        <div class="bar-trk"><div class="bar-f kron" style="--w:2%">~31K</div></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="rv" style="margin-top:1.5rem">
+    The savings explode for higher-dimensional data. A 3-way Tucker dictionary for color patches can be <strong>50× smaller</strong> than the flat K-SVD version. For video or hyperspectral data (4D–5D), the gap grows to <strong>100–1000×</strong>.
+  </p>
+</div>
+</section>
+
+<!-- ═══════ COMPARISON TABLE ═══════ -->
+<section style="padding-top:0">
+<div class="wrap">
+  <div class="rv">
+    <div class="bar" style="background:linear-gradient(90deg,var(--amber),var(--sky))"></div>
+    <h2>SVD vs Tucker in Dictionary Learning</h2>
+  </div>
+
+  <table class="cmp rv">
+    <thead><tr><th>Aspect</th><th><span class="tag svd">K-SVD (uses SVD)</span></th><th><span class="tag tuck">Tucker DL</span></th></tr></thead>
+    <tbody>
+      <tr><td><strong>Atom shape</strong></td><td>Flat vector (n×1)</td><td>Tensor (n₁×n₂×…)</td></tr>
+      <tr><td><strong>Dictionary structure</strong></td><td>Unstructured n × K matrix</td><td>Kronecker product of small sub-dictionaries</td></tr>
+      <tr><td><strong>Update step</strong></td><td>Rank-1 SVD per atom</td><td>HOSVD / gradient on factor matrices</td></tr>
+      <tr><td><strong>Parameters</strong></td><td>n · K (huge for large patches)</td><td>Σ(nᵢ · Kᵢ) + core (dramatically smaller)</td></tr>
+      <tr><td><strong>Sparse coding</strong></td><td>OMP on full dictionary</td><td>Kronecker-OMP / N-BOMP (exploits structure)</td></tr>
+      <tr><td><strong>Training data needed</strong></td><td>Many samples (big dictionary)</td><td>Fewer samples (compact parameterization)</td></tr>
+      <tr><td><strong>Multi-way data</strong></td><td>Must vectorize → loses structure</td><td>Naturally handles 3D, 4D, … data</td></tr>
+      <tr><td><strong>Reconstruction quality</strong></td><td>Very good for 2D</td><td>Comparable or better, especially in higher dimensions</td></tr>
+    </tbody>
+  </table>
+</div>
+</section>
+
+<!-- ═══════ WHERE IT'S USED ═══════ -->
+<section>
+<div class="wrap">
+  <div class="rv">
+    <div class="bar" style="background:linear-gradient(90deg,var(--teal),var(--rose))"></div>
+    <h2>Applications</h2>
+  </div>
+
+  <div class="card-grid c2 rv">
+    <div class="card" style="border-left:3px solid var(--sky)">
+      <h3>🖼️ Image Denoising & Inpainting</h3>
+      <p>Kronecker-structured dictionaries denoise images by learning separable structure on rows and columns of patches. The RKCA model uses Tucker factorization to get two low-rank sub-dictionaries, achieving better denoising than flat K-SVD.</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--teal)">
+      <h3>🌈 Hyperspectral Compression</h3>
+      <p>Hyperspectral images are 3D tensors (x × y × λ). Tucker decomposes the dictionary into spatial and spectral sub-dictionaries, compressing data by 10–100× while preserving spectral fidelity that flat SVD-based methods lose.</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--indigo)">
+      <h3>🗣️ Speaker Identification</h3>
+      <p>Speech features across time × frequency × channel are naturally tensors. Tucker-based tensor dictionary learning produces more discriminative atoms than K-SVD, with significantly better classification accuracy.</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--rose)">
+      <h3>🧠 MRI / Medical Imaging</h3>
+      <p>Kruskal Factor Analysis (KFA) learns tensor dictionaries where each atom has Tucker-like low-rank structure. On 3D MRI data with 8×8×8 patches, it outperforms BPFA (flat dictionary) in reconstruction by 2–3 dB PSNR.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════ CODE EXAMPLE ═══════ -->
+<section>
+<div class="wrap">
+  <div class="rv">
+    <div class="bar" style="background:linear-gradient(90deg,var(--sky),var(--indigo))"></div>
+    <h2>Pseudocode: Tucker Dictionary vs K-SVD</h2>
+  </div>
+
+  <div class="code rv">
+<pre><span class="cm"># ──── K-SVD: dictionary atoms are VECTORS ────</span>
+<span class="kw">for</span> k <span class="kw">in</span> <span class="fn">range</span>(K):
+    E_k = X - D @ Gamma + d_k @ gamma_k   <span class="cm"># residual matrix</span>
+    U, s, Vt = <span class="fn">svd</span>(E_k, rank=<span class="nu">1</span>)          <span class="cm"># ← SVD here</span>
+    d_k = U[:, <span class="nu">0</span>]                           <span class="cm"># atom = left singular vector</span>
+    gamma_k = s[<span class="nu">0</span>] * Vt[<span class="nu">0</span>, :]               <span class="cm"># coefficients</span>
+<span class="cm"># Storage: n × K parameters (n = patch_h × patch_w)</span>
+
+<span class="cm"># ──── Tucker DL: dictionary atoms are TENSORS ────</span>
+<span class="kw">for</span> k <span class="kw">in</span> <span class="fn">range</span>(K):
+    E_k = <span class="fn">tensor_residual</span>(X, D1, D2, Core)  <span class="cm"># residual stays as tensor</span>
+    G, [U1, U2] = <span class="fn">tucker</span>(E_k, rank=[r1, r2]) <span class="cm"># ← Tucker here</span>
+    D1, D2 = <span class="fn">update_sub_dicts</span>(U1, U2)       <span class="cm"># sub-dictionaries</span>
+    Core = <span class="fn">update_core</span>(G)                    <span class="cm"># sparse core coefficients</span>
+<span class="cm"># Storage: n₁×K₁ + n₂×K₂ + core  (≪ n×K)</span>
+
+<span class="cm"># For 16×16 patches, K=256 atoms:</span>
+<span class="cm"># K-SVD:  256 × 256 = 65,536 params</span>
+<span class="cm"># Tucker: 16×16 + 16×16 + small core ≈ 3,500 params  (19× smaller!)</span></pre>
+  </div>
+</div>
+</section>
+
+<!-- ═══════ TL;DR ═══════ -->
+<section>
+<div class="wrap">
+  <div class="rv">
+    <div class="bar" style="background:linear-gradient(90deg,var(--sky),var(--teal),var(--indigo))"></div>
+    <h2>TL;DR</h2>
+  </div>
+
+  <div class="card-grid c3 rv">
+    <div class="card" style="border-top:3px solid var(--amber)">
+      <h3>The Problem</h3>
+      <p>K-SVD treats every dictionary atom as a flat vector. For large or multi-dimensional patches, the dictionary becomes huge and training becomes slow. SVD only sees 2D structure.</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--sky)">
+      <h3>The Fix</h3>
+      <p>Replace SVD with Tucker decomposition. Atoms stay as tensors. The dictionary factorizes into small sub-dictionaries per mode (Kronecker structure), with a sparse core tensor as coefficients.</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--teal)">
+      <h3>The Payoff</h3>
+      <p>10–50× fewer parameters. Faster sparse coding via Kronecker-OMP. Better reconstruction on multi-dimensional data. And the same alternating optimization loop you already know.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<footer class="wrap">
+  <p>Built from: Zubair & Wang, "Tensor dictionary learning with sparse Tucker decomposition" (DSP 2013); Gan et al., "Tensor compression using Tucker decomposition and dictionary dimensionality reduction" (2020); Hawe et al., "Separable Dictionary Learning" (2013); Stevens & Carin, "Tensor-Dictionary Learning with Deep Kruskal-Factor Analysis" (AISTATS 2017); Caiafa & Cichocki, "Computing sparse representations using Kronecker bases" (Neural Computation 2013); Bahri et al., "Robust Kronecker Component Analysis" (2022).</p>
+</footer>
+
+<script>
+const obs = new IntersectionObserver(es => {
+  es.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('v');
+      if (e.target.id === 'bars') document.querySelectorAll('.bar-f').forEach(b => b.classList.add('v'));
+    }
+  });
+}, { threshold: .12 });
+document.querySelectorAll('.rv').forEach(el => obs.observe(el));
+const bEl = document.getElementById('bars');
+if (bEl) new IntersectionObserver(es => { es.forEach(e => { if (e.isIntersecting) document.querySelectorAll('.bar-f').forEach(b => b.classList.add('v')); }); }, { threshold: .1 }).observe(bEl);
+</script>
+</body>
+</html>

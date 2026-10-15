@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dictionary Learning — A Beginner's Guide</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0c0f14;
+            --surface: #141820;
+            --surface-2: #1a1f2b;
+            --border: #252b3a;
+            --text: #e2e4e9;
+            --text-dim: #8b90a0;
+            --accent: #4ae3b5;
+            --accent-glow: rgba(74, 227, 181, 0.15);
+            --accent-2: #f0a45d;
+            --accent-3: #7b8cff;
+            --danger: #ff6b8a;
+            --serif: 'DM Serif Display', Georgia, serif;
+            --sans: 'Source Sans 3', -apple-system, sans-serif;
+            --mono: 'JetBrains Mono', monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+            font-size: 17px;
+            line-height: 1.75;
+            overflow-x: hidden;
+        }
+
+        /* ── Grain overlay ── */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* ── Hero ── */
+        .hero {
+            min-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 4rem 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(74,227,181,0.08) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .hero-label {
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards 0.2s;
+        }
+
+        .hero h1 {
+            font-family: var(--serif);
+            font-size: clamp(2.8rem, 7vw, 5.5rem);
+            line-height: 1.1;
+            color: var(--text);
+            margin-bottom: 1.5rem;
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards 0.4s;
+        }
+
+        .hero h1 em {
+            color: var(--accent);
+            font-style: italic;
+        }
+
+        .hero-sub {
+            max-width: 600px;
+            font-size: 1.15rem;
+            color: var(--text-dim);
+            line-height: 1.8;
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards 0.6s;
+        }
+
+        .scroll-hint {
+            margin-top: 3rem;
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards 0.8s;
+        }
+
+        .scroll-hint span {
+            display: block;
+            width: 1px;
+            height: 50px;
+            background: linear-gradient(to bottom, var(--accent), transparent);
+            margin: 0 auto;
+            animation: pulse 2s ease infinite;
+        }
+
+        /* ── Container ── */
+        .container {
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 0 2rem 6rem;
+        }
+
+        /* ── Section ── */
+        .section {
+            margin-bottom: 5rem;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.7s ease;
+        }
+
+        .section.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .section-number {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            letter-spacing: 3px;
+            color: var(--accent);
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+        }
+
+        .section h2 {
+            font-family: var(--serif);
+            font-size: clamp(1.8rem, 4vw, 2.6rem);
+            line-height: 1.2;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+        }
+
+        .section p {
+            color: var(--text-dim);
+            margin-bottom: 1.25rem;
+            font-weight: 300;
+        }
+
+        .section p strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        /* ── Equation Box ── */
+        .equation-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2.5rem;
+            text-align: center;
+            margin: 2.5rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .equation-box::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        }
+
+        .equation {
+            font-family: var(--mono);
+            font-size: clamp(1.4rem, 3vw, 2rem);
+            letter-spacing: 2px;
+            color: var(--text);
+            margin-bottom: 1.5rem;
+        }
+
+        .equation .eq-x { color: var(--accent-2); }
+        .equation .eq-d { color: var(--accent); }
+        .equation .eq-r { color: var(--accent-3); }
+        .equation .eq-op { color: var(--text-dim); }
+
+        .equation-labels {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .eq-label {
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-dim);
+        }
+
+        .eq-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .eq-dot.x { background: var(--accent-2); }
+        .eq-dot.d { background: var(--accent); }
+        .eq-dot.r { background: var(--accent-3); }
+
+        /* ── Matrix Visual ── */
+        .matrix-visual {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr auto 1fr;
+            align-items: center;
+            gap: 1rem;
+            margin: 2.5rem 0;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow-x: auto;
+        }
+
+        .matrix {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .matrix-label {
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+        }
+
+        .matrix-label.x-label { color: var(--accent-2); }
+        .matrix-label.d-label { color: var(--accent); }
+        .matrix-label.r-label { color: var(--accent-3); }
+
+        .matrix-grid {
+            display: grid;
+            gap: 3px;
+            border-left: 2px solid;
+            border-right: 2px solid;
+            padding: 6px 10px;
+            border-radius: 3px;
+        }
+
+        .matrix-grid.x-grid {
+            grid-template-columns: repeat(3, 42px);
+            border-color: var(--accent-2);
+        }
+
+        .matrix-grid.d-grid {
+            grid-template-columns: repeat(2, 42px);
+            border-color: var(--accent);
+        }
+
+        .matrix-grid.r-grid {
+            grid-template-columns: repeat(3, 42px);
+            border-color: var(--accent-3);
+        }
+
+        .matrix-cell {
+            text-align: center;
+            padding: 4px 2px;
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        .matrix-cell.highlight {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .matrix-cell.zero {
+            color: #3a3f50;
+        }
+
+        .matrix-op {
+            font-family: var(--serif);
+            font-size: 1.5rem;
+            color: var(--text-dim);
+        }
+
+        /* ── Info Cards ── */
+        .card-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+            margin: 2rem 0;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.75rem;
+            transition: border-color 0.3s ease, transform 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .card-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .card h3 {
+            font-family: var(--serif);
+            font-size: 1.15rem;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        .card p {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+            font-weight: 300;
+        }
+
+        /* ── Breakdown ── */
+        .breakdown {
+            margin: 2.5rem 0;
+        }
+
+        .breakdown-item {
+            display: flex;
+            gap: 1.5rem;
+            padding: 1.75rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .breakdown-item:last-child { border-bottom: none; }
+
+        .breakdown-marker {
+            flex-shrink: 0;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+
+        .marker-d {
+            background: rgba(74,227,181,0.1);
+            color: var(--accent);
+            border: 1px solid rgba(74,227,181,0.25);
+        }
+
+        .marker-r {
+            background: rgba(123,140,255,0.1);
+            color: var(--accent-3);
+            border: 1px solid rgba(123,140,255,0.25);
+        }
+
+        .marker-x {
+            background: rgba(240,164,93,0.1);
+            color: var(--accent-2);
+            border: 1px solid rgba(240,164,93,0.25);
+        }
+
+        .breakdown-content h4 {
+            font-family: var(--serif);
+            font-size: 1.15rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .breakdown-content p {
+            color: var(--text-dim);
+            font-weight: 300;
+            font-size: 0.95rem;
+        }
+
+        /* ── Sparsity Visual ── */
+        .sparsity-demo {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+
+        .sparsity-demo h4 {
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent-3);
+            margin-bottom: 1.25rem;
+        }
+
+        .sparse-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+
+        .sparse-row-label {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            width: 70px;
+            flex-shrink: 0;
+        }
+
+        .sparse-cell {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            transition: all 0.3s ease;
+        }
+
+        .sparse-cell.zero {
+            background: var(--surface-2);
+            color: #2a2f3d;
+        }
+
+        .sparse-cell.nonzero {
+            background: rgba(123,140,255,0.15);
+            color: var(--accent-3);
+            border: 1px solid rgba(123,140,255,0.3);
+        }
+
+        .sparsity-caption {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            font-style: italic;
+        }
+
+        /* ── Process Flow ── */
+        .process-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            margin: 2.5rem 0;
+        }
+
+        .process-step {
+            display: flex;
+            gap: 1.5rem;
+            position: relative;
+        }
+
+        .process-line {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
+            width: 44px;
+        }
+
+        .process-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 3px solid var(--bg);
+            box-shadow: 0 0 0 1px var(--accent);
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+
+        .process-connector {
+            width: 1px;
+            flex: 1;
+            background: linear-gradient(to bottom, var(--accent), var(--border));
+            min-height: 30px;
+        }
+
+        .process-step:last-child .process-connector { display: none; }
+
+        .process-content {
+            padding-bottom: 2rem;
+        }
+
+        .process-content h4 {
+            font-family: var(--serif);
+            font-size: 1.1rem;
+            margin-bottom: 0.3rem;
+            color: var(--text);
+        }
+
+        .process-content p {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            font-weight: 300;
+        }
+
+        /* ── Methods table ── */
+        .methods-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            font-size: 0.9rem;
+        }
+
+        .methods-table th {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent);
+            text-align: left;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+        }
+
+        .methods-table th:first-child { border-radius: 10px 0 0 0; }
+        .methods-table th:last-child { border-radius: 0 10px 0 0; }
+
+        .methods-table td {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-dim);
+            font-weight: 300;
+        }
+
+        .methods-table td:first-child {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .tag {
+            display: inline-block;
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .tag-pro { background: rgba(74,227,181,0.1); color: var(--accent); }
+        .tag-con { background: rgba(255,107,138,0.1); color: var(--danger); }
+
+        /* ── Application grid ── */
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .app-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.25rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .app-item:hover {
+            border-color: var(--accent);
+            background: var(--surface-2);
+        }
+
+        .app-icon {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .app-item h4 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.25rem;
+        }
+
+        .app-item p {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            font-weight: 300;
+        }
+
+        /* ── Callout ── */
+        .callout {
+            background: var(--accent-glow);
+            border: 1px solid rgba(74,227,181,0.2);
+            border-radius: 12px;
+            padding: 1.75rem 2rem;
+            margin: 2rem 0;
+        }
+
+        .callout h4 {
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            color: var(--accent);
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .callout p {
+            color: var(--text);
+            font-weight: 300;
+        }
+
+        /* ── Code block ── */
+        .code-block {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 2rem 0;
+        }
+
+        .code-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .code-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .code-dot:nth-child(1) { background: #ff5f57; }
+        .code-dot:nth-child(2) { background: #ffbd2e; }
+        .code-dot:nth-child(3) { background: #28c840; }
+
+        .code-label {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-left: auto;
+        }
+
+        .code-block pre {
+            padding: 1.5rem;
+            overflow-x: auto;
+            font-family: var(--mono);
+            font-size: 0.82rem;
+            line-height: 1.7;
+            color: var(--text-dim);
+        }
+
+        .code-block .kw { color: var(--accent-3); }
+        .code-block .fn { color: var(--accent); }
+        .code-block .str { color: var(--accent-2); }
+        .code-block .cm { color: #4a4f60; }
+
+        /* ── Footer ── */
+        .footer {
+            text-align: center;
+            padding: 3rem 2rem;
+            border-top: 1px solid var(--border);
+            margin-top: 2rem;
+        }
+
+        .footer p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            font-weight: 300;
+        }
+
+        .footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        /* ── Animations ── */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 700px) {
+            .card-grid { grid-template-columns: 1fr; }
+            .app-grid { grid-template-columns: 1fr 1fr; }
+            .matrix-visual {
+                grid-template-columns: 1fr;
+                text-align: center;
+                gap: 0.75rem;
+            }
+            .matrix-op { display: none; }
+            .breakdown-item { flex-direction: column; gap: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Hero ── -->
+<section class="hero">
+    <div class="hero-label">A Beginner's Complete Guide</div>
+    <h1>Understanding<br><em>Dictionary Learning</em></h1>
+    <p class="hero-sub">
+        How machines discover fundamental patterns in data and encode information with maximum efficiency and minimum noise.
+    </p>
+    <div class="scroll-hint"><span></span></div>
+</section>
+
+<!-- ── Content ── -->
+<div class="container">
+
+    <!-- Section 1 -->
+    <section class="section">
+        <div class="section-number">01 — The Problem</div>
+        <h2>Why Do We Need Dictionary Learning?</h2>
+        <p>
+            When you work with real-world data — images, audio signals, sensor readings, brain scans — each piece of data is represented as a <strong>vector</strong>: a long list of numbers. An image, for example, could be a vector of millions of pixel values.
+        </p>
+        <p>
+            Processing this raw data directly is <strong>slow</strong>, <strong>expensive</strong>, and <strong>noisy</strong>. Much of the information in those raw numbers is redundant or irrelevant. What we really want is a way to capture only the essential structure — a smarter, more compact representation that preserves what matters and throws away what doesn't.
+        </p>
+        <p>
+            <strong>Dictionary learning solves exactly this problem.</strong> It finds the fundamental patterns hidden in your data and learns how to represent each data point using only a few of those patterns.
+        </p>
+    </section>
+
+    <!-- Section 2 -->
+    <section class="section">
+        <div class="section-number">02 — The Core Equation</div>
+        <h2>The Heart of Dictionary Learning</h2>
+        <p>
+            The entire concept can be captured in a single equation. Dictionary learning takes your original data matrix and decomposes it into two smaller matrices:
+        </p>
+
+        <div class="equation-box">
+            <div class="equation">
+                <span class="eq-x">X</span>
+                <span class="eq-op"> ≈ </span>
+                <span class="eq-d">D</span>
+                <span class="eq-op"> × </span>
+                <span class="eq-r">R</span>
+            </div>
+            <div class="equation-labels">
+                <div class="eq-label"><div class="eq-dot x"></div>Original Data</div>
+                <div class="eq-label"><div class="eq-dot d"></div>Dictionary (Patterns)</div>
+                <div class="eq-label"><div class="eq-dot r"></div>Coefficients (Sparse)</div>
+            </div>
+        </div>
+
+        <p>
+            The algorithm <strong>learns</strong> both D and R simultaneously, optimizing them so that their product reconstructs the original data as closely as possible while keeping R as sparse (full of zeros) as it can.
+        </p>
+    </section>
+
+    <!-- Section 3 -->
+    <section class="section">
+        <div class="section-number">03 — The Three Players</div>
+        <h2>Understanding X, D, and R</h2>
+        <p>Each matrix plays a distinct and critical role in the system. Here's what each one does:</p>
+
+        <div class="breakdown">
+            <div class="breakdown-item">
+                <div class="breakdown-marker marker-x">X</div>
+                <div class="breakdown-content">
+                    <h4>X — Your Original Data</h4>
+                    <p>
+                        This is the raw data you start with. Each column of X represents one data point — one image, one audio clip, one sensor reading. If you have 1,000 images each represented by 5,000 pixel values, then X is a 5,000 × 1,000 matrix. It's big, messy, and contains both useful information and noise.
+                    </p>
+                </div>
+            </div>
+            <div class="breakdown-item">
+                <div class="breakdown-marker marker-d">D</div>
+                <div class="breakdown-content">
+                    <h4>D — The Dictionary (Fundamental Patterns)</h4>
+                    <p>
+                        D is the matrix of <strong>atoms</strong> — each column is one fundamental pattern discovered in your data. If your data is face images, one atom might capture the general shape of an eye, another might capture the curve of a jawline, another might capture shadow patterns on a cheek. Together, these atoms form a <strong>vocabulary of patterns</strong> that can describe your entire dataset. The atoms do <strong>not</strong> need to be orthogonal (perpendicular to each other), and there can be more atoms than the dimensionality of the data — this is called an <strong>overcomplete dictionary</strong>.
+                    </p>
+                </div>
+            </div>
+            <div class="breakdown-item">
+                <div class="breakdown-marker marker-r">R</div>
+                <div class="breakdown-content">
+                    <h4>R — The Coefficient Matrix (Sparse Selector &amp; Scaler)</h4>
+                    <p>
+                        R tells you <strong>which atoms from D to use</strong> and <strong>how much of each</strong> for every single data point. For any given data point, most entries in its column of R are <strong>zero</strong>. Only a small number of coefficients are non-zero — those are the atoms that actually matter for that particular data point. R is both a <strong>selector</strong> (picks which patterns are relevant) and a <strong>scaler</strong> (determines how strongly each selected pattern contributes).
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 4 -->
+    <section class="section">
+        <div class="section-number">04 — A Concrete Example</div>
+        <h2>Seeing It in Numbers</h2>
+        <p>
+            Let's say we have 3 data vectors, each with 4 dimensions. Dictionary learning discovers 2 atoms and produces sparse coefficients:
+        </p>
+
+        <div class="matrix-visual">
+            <div class="matrix">
+                <div class="matrix-label x-label">X (data)</div>
+                <div class="matrix-grid x-grid">
+                    <div class="matrix-cell highlight">2</div>
+                    <div class="matrix-cell highlight">1</div>
+                    <div class="matrix-cell highlight">3</div>
+                    <div class="matrix-cell">-1</div>
+                    <div class="matrix-cell">0</div>
+                    <div class="matrix-cell">-1</div>
+                    <div class="matrix-cell">0</div>
+                    <div class="matrix-cell">-1</div>
+                    <div class="matrix-cell">-1</div>
+                    <div class="matrix-cell">1</div>
+                    <div class="matrix-cell">2</div>
+                    <div class="matrix-cell">3</div>
+                </div>
+            </div>
+            <div class="matrix-op">≈</div>
+            <div class="matrix">
+                <div class="matrix-label d-label">D (patterns)</div>
+                <div class="matrix-grid d-grid">
+                    <div class="matrix-cell highlight">1</div>
+                    <div class="matrix-cell highlight">0.5</div>
+                    <div class="matrix-cell">-0.5</div>
+                    <div class="matrix-cell">0.5</div>
+                    <div class="matrix-cell">0</div>
+                    <div class="matrix-cell">-0.5</div>
+                    <div class="matrix-cell">0.5</div>
+                    <div class="matrix-cell">1</div>
+                </div>
+            </div>
+            <div class="matrix-op">×</div>
+            <div class="matrix">
+                <div class="matrix-label r-label">R (sparse)</div>
+                <div class="matrix-grid r-grid">
+                    <div class="matrix-cell highlight">2</div>
+                    <div class="matrix-cell zero">0</div>
+                    <div class="matrix-cell highlight">1</div>
+                    <div class="matrix-cell zero">0</div>
+                    <div class="matrix-cell highlight">2</div>
+                    <div class="matrix-cell highlight">2</div>
+                </div>
+            </div>
+        </div>
+
+        <p>
+            Notice how R has many zeros. For the first data point, only atom #1 is used (with weight 2). For the second data point, only atom #2 is used (with weight 2). The third data point uses both atoms. This is <strong>sparse encoding</strong> — each data point is described with minimal information.
+        </p>
+    </section>
+
+    <!-- Section 5 -->
+    <section class="section">
+        <div class="section-number">05 — Understanding Sparsity</div>
+        <h2>Why Zeros Matter So Much</h2>
+        <p>
+            Sparsity — the property of having mostly zeros in the coefficient matrix R — is the single most important feature of dictionary learning. Here's a visual: if D has 10 atoms, a sparse R column might look like this:
+        </p>
+
+        <div class="sparsity-demo">
+            <h4>Coefficient vector for one data point (10 atoms available)</h4>
+            <div class="sparse-row">
+                <div class="sparse-row-label">Dense →</div>
+                <div class="sparse-cell nonzero">0.3</div>
+                <div class="sparse-cell nonzero">1.2</div>
+                <div class="sparse-cell nonzero">0.1</div>
+                <div class="sparse-cell nonzero">0.8</div>
+                <div class="sparse-cell nonzero">0.5</div>
+                <div class="sparse-cell nonzero">0.2</div>
+                <div class="sparse-cell nonzero">1.1</div>
+                <div class="sparse-cell nonzero">0.4</div>
+                <div class="sparse-cell nonzero">0.9</div>
+                <div class="sparse-cell nonzero">0.6</div>
+            </div>
+            <div class="sparse-row">
+                <div class="sparse-row-label">Sparse →</div>
+                <div class="sparse-cell zero">0</div>
+                <div class="sparse-cell nonzero">1.2</div>
+                <div class="sparse-cell zero">0</div>
+                <div class="sparse-cell zero">0</div>
+                <div class="sparse-cell zero">0</div>
+                <div class="sparse-cell zero">0</div>
+                <div class="sparse-cell nonzero">1.1</div>
+                <div class="sparse-cell zero">0</div>
+                <div class="sparse-cell nonzero">0.9</div>
+                <div class="sparse-cell zero">0</div>
+            </div>
+            <p class="sparsity-caption">
+                In the sparse version, only 3 out of 10 atoms are used. The zeros mean "this pattern is irrelevant for this data point."
+            </p>
+        </div>
+
+        <p>
+            <strong>Why is this powerful?</strong> Sparsity gives you four major advantages:
+        </p>
+
+        <div class="card-grid">
+            <div class="card">
+                <div class="card-icon">🛡</div>
+                <h3>Noise Resilience</h3>
+                <p>When only a few coefficients are non-zero, random noise in the data doesn't get encoded. The representation captures only meaningful structure, filtering out the irrelevant variations.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">⚡</div>
+                <h3>Computational Efficiency</h3>
+                <p>Algorithms process sparse data much faster. Most entries are zero and can be skipped entirely. This translates directly into faster training, faster inference, and lower memory usage.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">🎯</div>
+                <h3>Better Accuracy</h3>
+                <p>By stripping away noise and irrelevant information, downstream models (classifiers, neural networks) receive cleaner input and produce more accurate results.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">📦</div>
+                <h3>Data Compression</h3>
+                <p>Storing only the non-zero entries and their positions is far more efficient than storing the entire raw vector. This is a natural form of lossy compression with controllable fidelity.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 6 -->
+    <section class="section">
+        <div class="section-number">06 — How It Learns</div>
+        <h2>The Optimization Process</h2>
+        <p>
+            Dictionary learning works by solving a <strong>constrained optimization problem</strong>. It simultaneously adjusts D and R to satisfy two competing goals:
+        </p>
+
+        <div class="process-flow">
+            <div class="process-step">
+                <div class="process-line"><div class="process-dot"></div><div class="process-connector"></div></div>
+                <div class="process-content">
+                    <h4>Goal 1: Minimize Reconstruction Error</h4>
+                    <p>The product D × R should be as close to the original data X as possible. The algorithm measures the difference and tries to shrink it. If the reconstruction is poor, D and R are adjusted.</p>
+                </div>
+            </div>
+            <div class="process-step">
+                <div class="process-line"><div class="process-dot"></div><div class="process-connector"></div></div>
+                <div class="process-content">
+                    <h4>Goal 2: Maximize Sparsity of R</h4>
+                    <p>At the same time, R should have as many zeros as possible. A sparsity constraint or penalty forces the algorithm to use fewer atoms per data point. More zeros = better encoding.</p>
+                </div>
+            </div>
+            <div class="process-step">
+                <div class="process-line"><div class="process-dot"></div><div class="process-connector"></div></div>
+                <div class="process-content">
+                    <h4>Iterate Until Convergence</h4>
+                    <p>The algorithm alternates between updating D (given R) and updating R (given D), repeating this cycle until both matrices stabilize and the solution converges to an optimum.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="callout">
+            <h4>Why not solve it exactly?</h4>
+            <p>
+                Finding the perfect analytical solution is an <strong>NP-complete problem</strong> — meaning for large datasets, no computer can solve it in a reasonable amount of time. That's why we use iterative numerical methods that converge to excellent approximate solutions instead.
+            </p>
+        </div>
+    </section>
+
+    <!-- Section 7 -->
+    <section class="section">
+        <div class="section-number">07 — Methods</div>
+        <h2>Popular Algorithms for Dictionary Learning</h2>
+        <p>
+            Several numerical methods have been developed to solve the dictionary learning optimization problem. Each has different trade-offs:
+        </p>
+
+        <table class="methods-table">
+            <thead>
+                <tr>
+                    <th>Method</th>
+                    <th>How It Works</th>
+                    <th>Strengths &amp; Weaknesses</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>MOD</td>
+                    <td>Method of Optimal Direction. Directly computes the pseudo-inverse of R to update D optimally at each step.</td>
+                    <td>
+                        <span class="tag tag-pro">Guaranteed optimal</span> when sample size is sufficient.
+                        <span class="tag tag-con">Expensive</span> for high-dimensional data due to pseudo-inverse computation.
+                    </td>
+                </tr>
+                <tr>
+                    <td>K-SVD</td>
+                    <td>Extends K-Means clustering. Updates one atom at a time using singular value decomposition (SVD) on the residual error.</td>
+                    <td>
+                        <span class="tag tag-pro">Scalable</span> and efficient for medium/large datasets.
+                        <span class="tag tag-con">Can get stuck</span> in local minima depending on initialization.
+                    </td>
+                </tr>
+                <tr>
+                    <td>Online DL</td>
+                    <td>Processes data in small batches rather than the whole dataset at once. Updates dictionary incrementally.</td>
+                    <td>
+                        <span class="tag tag-pro">Memory efficient</span> — handles very large or streaming data.
+                        <span class="tag tag-con">Slower convergence</span> compared to batch methods.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Section 8 -->
+    <section class="section">
+        <div class="section-number">08 — Applications</div>
+        <h2>Where Dictionary Learning Is Used</h2>
+        <p>
+            Because dictionary learning produces efficient, sparse representations, it's used across many fields where data compression, denoising, or pattern extraction matter:
+        </p>
+
+        <div class="app-grid">
+            <div class="app-item">
+                <div class="app-icon">🖼</div>
+                <h4>Image Processing</h4>
+                <p>Denoising, inpainting, super-resolution, and compression</p>
+            </div>
+            <div class="app-item">
+                <div class="app-icon">🔊</div>
+                <h4>Signal Processing</h4>
+                <p>Audio denoising, speech enhancement, and source separation</p>
+            </div>
+            <div class="app-item">
+                <div class="app-icon">🧠</div>
+                <h4>Medical Imaging</h4>
+                <p>EEG brain scan analysis, MRI reconstruction</p>
+            </div>
+            <div class="app-item">
+                <div class="app-icon">📡</div>
+                <h4>Remote Sensing</h4>
+                <p>Satellite image classification and anomaly detection</p>
+            </div>
+            <div class="app-item">
+                <div class="app-icon">🎥</div>
+                <h4>Video Processing</h4>
+                <p>Efficient storage, background subtraction, and motion detection</p>
+            </div>
+            <div class="app-item">
+                <div class="app-icon">🤖</div>
+                <h4>Deep Learning</h4>
+                <p>Feature learning, pre-training, and representation learning in neural networks</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 9 -->
+    <section class="section">
+        <div class="section-number">09 — In Practice</div>
+        <h2>Python Implementation with scikit-learn</h2>
+        <p>
+            You can implement dictionary learning in just a few lines using scikit-learn's built-in <strong>DictionaryLearning</strong> module:
+        </p>
+
+        <div class="code-block">
+            <div class="code-header">
+                <div class="code-dot"></div>
+                <div class="code-dot"></div>
+                <div class="code-dot"></div>
+                <div class="code-label">dictionary_learning.py</div>
+            </div>
+            <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> sklearn.decomposition <span class="kw">import</span> <span class="fn">DictionaryLearning</span>
+
+<span class="cm"># Your original data: 10 samples, each with 8 features</span>
+X = np.<span class="fn">random.randn</span>(<span class="str">10</span>, <span class="str">8</span>)
+
+<span class="cm"># Create the dictionary learning model</span>
+<span class="cm"># n_components = number of atoms in the dictionary</span>
+dl = <span class="fn">DictionaryLearning</span>(
+    n_components=<span class="str">5</span>,        <span class="cm"># learn 5 atoms</span>
+    alpha=<span class="str">1.0</span>,              <span class="cm"># sparsity control</span>
+    max_iter=<span class="str">1000</span>,          <span class="cm"># iteration limit</span>
+    fit_algorithm=<span class="str">'lars'</span>,   <span class="cm"># solver method</span>
+    transform_algorithm=<span class="str">'lasso_lars'</span>
+)
+
+<span class="cm"># R = sparse coefficient matrix</span>
+R = dl.<span class="fn">fit_transform</span>(X)
+
+<span class="cm"># D = learned dictionary (atom patterns)</span>
+D = dl.components_
+
+<span class="fn">print</span>(<span class="str">"Original shape:"</span>, X.shape)   <span class="cm"># (10, 8)</span>
+<span class="fn">print</span>(<span class="str">"Dictionary shape:"</span>, D.shape)  <span class="cm"># (5, 8)</span>
+<span class="fn">print</span>(<span class="str">"Sparse R shape:"</span>, R.shape)    <span class="cm"># (10, 5)</span>
+<span class="fn">print</span>(<span class="str">"Sparsity of R:"</span>,
+    np.<span class="fn">round</span>(np.<span class="fn">sum</span>(R == <span class="str">0</span>) / R.size * <span class="str">100</span>, <span class="str">1</span>), <span class="str">"%"</span>)</pre>
+        </div>
+
+        <p>
+            The <strong>alpha</strong> parameter controls the sparsity-reconstruction tradeoff. Higher alpha means sparser R (more zeros) but potentially more reconstruction error. Lower alpha gives better reconstruction but less sparse coefficients.
+        </p>
+    </section>
+
+    <!-- Section 10 -->
+    <section class="section">
+        <div class="section-number">10 — Why It Matters for ML</div>
+        <h2>The Machine Learning Connection</h2>
+        <p>
+            Almost every machine learning algorithm benefits from having a good data representation. Dictionary learning provides exactly that. Here's why ML practitioners care about it:
+        </p>
+
+        <div class="card-grid">
+            <div class="card">
+                <h3>Generalization</h3>
+                <p>If the dictionary is learned from enough samples without excessive noise, it can optimally encode <strong>new, unseen data points</strong> — not just the training data. The dictionary captures the underlying structure of the data domain.</p>
+            </div>
+            <div class="card">
+                <h3>Preprocessing Power</h3>
+                <p>Feeding sparse, clean representations into a neural network or classifier is far more effective than feeding raw, noisy data. Dictionary learning acts as a powerful preprocessing step that boosts downstream accuracy.</p>
+            </div>
+            <div class="card">
+                <h3>Dimensionality Reduction</h3>
+                <p>The sparse coefficient matrix R can have fewer effective dimensions than the original data X. This means less computation, less memory, and faster training for any algorithm that follows.</p>
+            </div>
+            <div class="card">
+                <h3>Interpretability</h3>
+                <p>Because each atom represents a meaningful pattern, dictionary learning can reveal what features your data actually contains — making it easier to understand what your model is working with.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Summary -->
+    <section class="section">
+        <div class="section-number">Summary</div>
+        <h2>The Complete Picture</h2>
+        <p>
+            Dictionary learning discovers a set of fundamental patterns (<strong>D</strong>) in your data and learns how to represent each data point as a sparse combination of those patterns (<strong>R</strong>). The sparse representation is compact, noise-resistant, and efficient — making it ideal as input for machine learning algorithms, compression systems, and signal processing pipelines.
+        </p>
+        <p>
+            <strong>D holds all the possible patterns. R selects which ones matter for each data point and how strongly.</strong> Together, they give you a reconstruction that captures what's essential and discards what's not.
+        </p>
+
+        <div class="callout">
+            <h4>Key Takeaway</h4>
+            <p>
+                Dictionary learning asks: <em>"What is the smallest set of fundamental patterns I need, and what is the simplest combination for each data point, to faithfully represent my entire dataset?"</em> The answer is a powerful, sparse encoding that makes everything downstream work better.
+            </p>
+        </div>
+    </section>
+
+</div>
+
+<footer class="footer">
+    <p>
+        Based on the article by <a href="#">Nipun Deelaka</a> — expanded for beginners.
+    </p>
+</footer>
+
+<script>
+    // Scroll-triggered fade-in
+    const sections = document.querySelectorAll('.section');
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+
+    sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>

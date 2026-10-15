@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convexity in Optimization — Interactive Visualizations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Spectral:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2c3e50;
+            --secondary: #e74c3c;
+            --accent: #3498db;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --bg: #fefefe;
+            --text: #1a1a1a;
+            --text-secondary: #666;
+            --border: #d0d0d0;
+            --convex-color: #27ae60;
+            --biconvex-color: #f39c12;
+            --nonconvex-color: #e74c3c;
+        }
+
+        body {
+            font-family: 'Spectral', Georgia, serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* Mathematical notation */
+        .math {
+            font-family: 'EB Garamond', serif;
+            font-style: italic;
+            font-size: 1.05em;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9em;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 5rem 2rem 4rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.03) 30%, rgba(255,255,255,0.03) 50%, transparent 50%),
+                linear-gradient(-45deg, transparent 30%, rgba(255,255,255,0.03) 30%, rgba(255,255,255,0.03) 50%, transparent 50%);
+            background-size: 60px 60px;
+            opacity: 0.5;
+        }
+
+        h1 {
+            font-family: 'EB Garamond', serif;
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 700;
+            margin-bottom: 1rem;
+            position: relative;
+            z-index: 1;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            font-size: 1.4rem;
+            opacity: 0.9;
+            font-weight: 300;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        /* Section */
+        section {
+            padding: 5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        section:last-child {
+            border-bottom: none;
+        }
+
+        h2 {
+            font-family: 'EB Garamond', serif;
+            font-size: 2.8rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        h3 {
+            font-family: 'EB Garamond', serif;
+            font-size: 2rem;
+            font-weight: 600;
+            margin: 3rem 0 1.5rem;
+            color: var(--primary);
+        }
+
+        p {
+            font-size: 1.15rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        /* Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+            margin: 3rem 0;
+        }
+
+        .card {
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            padding: 2.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border-color: var(--accent);
+        }
+
+        .card h4 {
+            font-family: 'EB Garamond', serif;
+            font-size: 1.6rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .card ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .card li {
+            padding: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .card li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        /* Canvas containers */
+        .canvas-container {
+            background: #f8f9fa;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            padding: 2rem;
+            margin: 2rem 0;
+            position: relative;
+        }
+
+        canvas {
+            width: 100%;
+            max-width: 800px;
+            height: 400px;
+            display: block;
+            margin: 0 auto;
+            background: white;
+            border: 1px solid var(--border);
+            cursor: crosshair;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1.5rem;
+            align-items: center;
+        }
+
+        button {
+            font-family: 'JetBrains Mono', monospace;
+            padding: 0.75rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #34495e;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        button.secondary {
+            background: var(--accent);
+        }
+
+        button.secondary:hover {
+            background: #2980b9;
+        }
+
+        .btn-convex {
+            background: var(--convex-color);
+        }
+
+        .btn-convex:hover {
+            background: #229954;
+        }
+
+        .btn-biconvex {
+            background: var(--biconvex-color);
+        }
+
+        .btn-biconvex:hover {
+            background: #d68910;
+        }
+
+        .btn-nonconvex {
+            background: var(--nonconvex-color);
+        }
+
+        .btn-nonconvex:hover {
+            background: #c0392b;
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+            padding: 1.5rem;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            margin: 1.5rem 0;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        .legend-color {
+            width: 30px;
+            height: 20px;
+            border-radius: 2px;
+            border: 1px solid var(--border);
+        }
+
+        /* Comparison table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 2rem 0;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .comparison-table th {
+            background: var(--primary);
+            color: white;
+            padding: 1.2rem;
+            text-align: left;
+            font-family: 'EB Garamond', serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .comparison-table td {
+            padding: 1rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 1rem;
+        }
+
+        .comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .comparison-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 3px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .badge-success {
+            background: #d5f4e6;
+            color: #0f5132;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #664d03;
+        }
+
+        .badge-danger {
+            background: #f8d7da;
+            color: #842029;
+        }
+
+        /* Code blocks */
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 2rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 2rem 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .code-comment {
+            color: #6a9955;
+        }
+
+        .code-keyword {
+            color: #569cd6;
+        }
+
+        .code-function {
+            color: #dcdcaa;
+        }
+
+        .code-string {
+            color: #ce9178;
+        }
+
+        /* Interactive slider */
+        .slider-container {
+            margin: 2rem 0;
+        }
+
+        .slider-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            display: block;
+            color: var(--text);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            background: #2980b9;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--accent);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        /* Info box */
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid var(--accent);
+            padding: 1.5rem 2rem;
+            margin: 2rem 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .info-box h4 {
+            font-family: 'EB Garamond', serif;
+            font-size: 1.4rem;
+            margin-bottom: 0.75rem;
+            color: var(--primary);
+        }
+
+        .warning-box {
+            background: #fff8e1;
+            border-left-color: var(--warning);
+        }
+
+        .success-box {
+            background: #e8f5e9;
+            border-left-color: var(--success);
+        }
+
+        /* Footer */
+        footer {
+            background: var(--primary);
+            color: white;
+            text-align: center;
+            padding: 3rem 2rem;
+            margin-top: 5rem;
+        }
+
+        footer p {
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5rem;
+            }
+
+            h2 {
+                font-size: 2rem;
+            }
+
+            .card-grid {
+                grid-template-columns: 1fr;
+            }
+
+            canvas {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Convexity in Optimization</h1>
+            <p class="subtitle">The Critical Distinction Between Tractable and Intractable Problems</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Introduction -->
+        <section id="intro">
+            <h2>The Fundamental Principle</h2>
+            <p>
+                A function is <strong>jointly convex</strong> if, viewed over the full product space of all variables simultaneously, it satisfies the convexity inequality. When this holds, <strong>any local minimum is a global minimum</strong>, and you can apply joint optimization methods with guarantees of convergence to the global optimum.
+            </p>
+            <p>
+                When the objective is non-convex in the joint space but <strong>convex in each variable separately</strong> (biconvex or multi-convex), you're stuck with alternating minimization. You get convergence to a stationary point at best, not a global optimum.
+            </p>
+
+            <div class="card-grid">
+                <div class="card">
+                    <h4>Jointly Convex ✓</h4>
+                    <ul>
+                        <li>Every local min = Global min</li>
+                        <li>Gradient descent converges</li>
+                        <li>One-shot solution</li>
+                        <li>Polynomial-time complexity</li>
+                        <li>No initialization sensitivity</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h4>Biconvex ⚠</h4>
+                    <ul>
+                        <li>Convex in each variable alone</li>
+                        <li>NOT jointly convex</li>
+                        <li>Alternating minimization required</li>
+                        <li>Converges to stationary point</li>
+                        <li>Initialization matters!</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h4>Non-convex ✗</h4>
+                    <ul>
+                        <li>Multiple local minima</li>
+                        <li>No convergence guarantees</li>
+                        <li>Requires global search heuristics</li>
+                        <li>Generally NP-hard</li>
+                        <li>Extremely sensitive to init</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive Visualization 1: Convex Function -->
+        <section id="viz-convex">
+            <h2>Interactive Visualization: Jointly Convex Function</h2>
+            <p>Example: <span class="math">f(x, y) = x² + y² + xy</span></p>
+            <p>This function is jointly convex in (x, y). Click anywhere to start gradient descent from that point. Watch how it always finds the global minimum!</p>
+
+            <div class="canvas-container">
+                <canvas id="convexCanvas"></canvas>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #27ae60;"></div>
+                        <span>Global Minimum</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #3498db;"></div>
+                        <span>Gradient Descent Path</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #e74c3c;"></div>
+                        <span>Starting Point</span>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="btn-convex" onclick="resetConvex()">Reset</button>
+                    <button class="secondary" onclick="randomStartConvex()">Random Start</button>
+                </div>
+            </div>
+
+            <div class="info-box success-box">
+                <h4>Key Observation</h4>
+                <p>No matter where you click, gradient descent always converges to the same point: the global minimum at (0, 0). This is the power of joint convexity!</p>
+            </div>
+        </section>
+
+        <!-- Interactive Visualization 2: Biconvex Function -->
+        <section id="viz-biconvex">
+            <h2>Interactive Visualization: Biconvex Function</h2>
+            <p>Example: <span class="math">f(x, y) = xy - x² - y²</span></p>
+            <p>Convex in <span class="math">x</span> when <span class="math">y</span> is fixed, and convex in <span class="math">y</span> when <span class="math">x</span> is fixed. But NOT jointly convex! Click to see alternating minimization.</p>
+
+            <div class="canvas-container">
+                <canvas id="biconvexCanvas"></canvas>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #f39c12;"></div>
+                        <span>Saddle Point</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #9b59b6;"></div>
+                        <span>Alternating Min Path</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #e74c3c;"></div>
+                        <span>Starting Point</span>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="btn-biconvex" onclick="resetBiconvex()">Reset</button>
+                    <button class="secondary" onclick="randomStartBiconvex()">Random Start</button>
+                    <button onclick="stepBiconvex()">Step</button>
+                </div>
+            </div>
+
+            <div class="info-box warning-box">
+                <h4>Key Observation</h4>
+                <p>Alternating minimization converges to a saddle point, not a minimum! The algorithm alternates between minimizing over <span class="math">x</span> (vertical moves) and <span class="math">y</span> (horizontal moves), but gets stuck at (0, 0) which is NOT a minimum.</p>
+            </div>
+        </section>
+
+        <!-- Interactive Visualization 3: Matrix Factorization -->
+        <section id="viz-matrix">
+            <h2>Real-World Example: Matrix Factorization</h2>
+            <p>Problem: <span class="math">minimize ||M - UV||²</span></p>
+            <p>This is biconvex in (U, V). Convex in U when V is fixed, convex in V when U is fixed. Visualize the alternating least squares algorithm.</p>
+
+            <div class="canvas-container">
+                <canvas id="matrixCanvas"></canvas>
+                <div class="controls">
+                    <button class="btn-biconvex" onclick="resetMatrix()">Reset</button>
+                    <button class="secondary" onclick="stepMatrix()">Step ALS</button>
+                    <button onclick="runMatrix()">Run 10 Steps</button>
+                </div>
+                <div id="matrixInfo" style="margin-top: 1rem; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;"></div>
+            </div>
+
+            <div class="code-block">
+<span class="code-comment"># Alternating Least Squares (ALS)</span>
+<span class="code-keyword">while not</span> converged:
+    <span class="code-comment"># Fix V, optimize U</span>
+    U = <span class="code-function">argmin_U</span>(<span class="code-string">||M - UV||²</span>)
+    
+    <span class="code-comment"># Fix U, optimize V</span>
+    V = <span class="code-function">argmin_V</span>(<span class="code-string">||M - UV||²</span>)
+    
+    <span class="code-comment"># Check convergence</span>
+    <span class="code-keyword">if</span> <span class="code-function">change</span>(error) < threshold:
+        <span class="code-keyword">break</span>
+            </div>
+        </section>
+
+        <!-- Comparison Table -->
+        <section id="comparison">
+            <h2>The Optimization Hierarchy</h2>
+            
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Property</th>
+                        <th>Method</th>
+                        <th>Guarantee</th>
+                        <th>Complexity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Jointly Convex</strong></td>
+                        <td>Gradient descent, Newton's method, Interior-point</td>
+                        <td><span class="badge badge-success">Global Optimum</span></td>
+                        <td>Polynomial time</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Biconvex</strong></td>
+                        <td>Alternating minimization, Block coordinate descent</td>
+                        <td><span class="badge badge-warning">Stationary Point</span></td>
+                        <td>Depends on initialization</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Non-convex</strong></td>
+                        <td>Local search, Simulated annealing, Genetic algorithms</td>
+                        <td><span class="badge badge-danger">No Guarantees</span></td>
+                        <td>NP-hard (generally)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Mathematical Test -->
+        <section id="test">
+            <h2>How to Test for Joint Convexity</h2>
+            
+            <h3>The Hessian Test</h3>
+            <p>For a function <span class="math">f(x, y)</span>, compute the Hessian matrix:</p>
+            
+            <div class="code-block">
+H = [∂²f/∂x²    ∂²f/∂x∂y]
+    [∂²f/∂y∂x   ∂²f/∂y²  ]
+            </div>
+
+            <div class="card-grid">
+                <div class="card">
+                    <h4>Jointly Convex ⟺</h4>
+                    <p>Hessian is positive semidefinite (PSD) everywhere</p>
+                    <p class="mono">All eigenvalues ≥ 0</p>
+                </div>
+                <div class="card">
+                    <h4>Biconvex ⟺</h4>
+                    <p>Diagonal blocks are positive, but H is NOT PSD</p>
+                    <p class="mono">Some eigenvalues < 0</p>
+                </div>
+            </div>
+
+            <h3>Example: Testing <span class="math">f(x, y) = x² + y² + 4xy</span></h3>
+            
+            <div class="code-block">
+<span class="code-comment"># Compute Hessian</span>
+H = [2   4]
+    [4   2]
+
+<span class="code-comment"># Eigenvalues</span>
+λ₁ = 6  <span class="code-comment">(positive)</span>
+λ₂ = -2 <span class="code-comment">(negative!)</span>
+
+<span class="code-comment"># Conclusion: NOT jointly convex</span>
+<span class="code-comment"># But ∂²f/∂x² = 2 > 0 and ∂²f/∂y² = 2 > 0</span>
+<span class="code-comment"># So it's biconvex!</span>
+            </div>
+        </section>
+
+        <!-- Practical Applications -->
+        <section id="applications">
+            <h2>Real-World Applications</h2>
+
+            <div class="card-grid">
+                <div class="card">
+                    <h4>Linear Regression (Convex)</h4>
+                    <p><span class="math">min ||Ax - b||²</span></p>
+                    <ul>
+                        <li>Jointly convex in x</li>
+                        <li>Closed-form solution exists</li>
+                        <li>One-shot global optimum</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h4>Matrix Factorization (Biconvex)</h4>
+                    <p><span class="math">min ||M - UV||²</span></p>
+                    <ul>
+                        <li>Netflix prize problem</li>
+                        <li>Requires ALS algorithm</li>
+                        <li>Multiple initializations needed</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h4>Neural Networks (Non-convex)</h4>
+                    <p>Deep learning optimization</p>
+                    <ul>
+                        <li>Highly non-convex</li>
+                        <li>SGD with careful tuning</li>
+                        <li>No global optimality guarantee</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Interactive Convexity Visualizations — Understanding the Mathematics of Optimization</p>
+            <p style="margin-top: 0.5rem; font-size: 0.9rem;">Built with HTML5 Canvas and mathematical precision</p>
+        </div>
+    </footer>
+
+    <script>
+        // Utility functions
+        function gradient2D(x, y, func) {
+            const h = 0.0001;
+            const dx = (func(x + h, y) - func(x - h, y)) / (2 * h);
+            const dy = (func(x, y + h) - func(x, y - h)) / (2 * h);
+            return [dx, dy];
+        }
+
+        // Convex function: f(x, y) = x^2 + y^2 + xy
+        function convexFunc(x, y) {
+            return x * x + y * y + x * y;
+        }
+
+        // Biconvex function: f(x, y) = xy - x^2 - y^2
+        function biconvexFunc(x, y) {
+            return x * y - x * x - y * y;
+        }
+
+        // Canvas 1: Jointly Convex Visualization
+        const convexCanvas = document.getElementById('convexCanvas');
+        const convexCtx = convexCanvas.getContext('2d');
+        let convexPath = [];
+        let convexAnimating = false;
+
+        function setupConvexCanvas() {
+            convexCanvas.width = 800;
+            convexCanvas.height = 400;
+            drawConvexFunction();
+        }
+
+        function drawConvexFunction() {
+            const ctx = convexCtx;
+            const w = convexCanvas.width;
+            const h = convexCanvas.height;
+
+            // Clear
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, w, h);
+
+            // Draw contours
+            const scale = 40;
+            const centerX = w / 2;
+            const centerY = h / 2;
+
+            for (let level = 0.5; level <= 10; level += 1) {
+                ctx.strokeStyle = `rgba(52, 152, 219, ${0.3 - level * 0.02})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                
+                for (let angle = 0; angle <= Math.PI * 2; angle += 0.1) {
+                    const r = Math.sqrt(level) * scale;
+                    const x = centerX + r * Math.cos(angle);
+                    const y = centerY + r * Math.sin(angle);
+                    
+                    if (angle === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
+
+            // Draw global minimum
+            ctx.fillStyle = '#27ae60';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw path if exists
+            if (convexPath.length > 0) {
+                ctx.strokeStyle = '#3498db';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                
+                for (let i = 0; i < convexPath.length; i++) {
+                    const px = centerX + convexPath[i][0] * scale;
+                    const py = centerY + convexPath[i][1] * scale;
+                    
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // Draw start point
+                const start = convexPath[0];
+                ctx.fillStyle = '#e74c3c';
+                ctx.beginPath();
+                ctx.arc(centerX + start[0] * scale, centerY + start[1] * scale, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw current point
+                if (convexPath.length > 1) {
+                    const curr = convexPath[convexPath.length - 1];
+                    ctx.fillStyle = '#3498db';
+                    ctx.beginPath();
+                    ctx.arc(centerX + curr[0] * scale, centerY + curr[1] * scale, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Draw axes
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(w, centerY);
+            ctx.moveTo(centerX, 0);
+            ctx.lineTo(centerX, h);
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = '#666';
+            ctx.font = '14px JetBrains Mono';
+            ctx.fillText('x', w - 20, centerY - 10);
+            ctx.fillText('y', centerX + 10, 20);
+        }
+
+        function gradientDescentStep(x, y, learningRate = 0.1) {
+            const [dx, dy] = gradient2D(x, y, convexFunc);
+            return [x - learningRate * dx, y - learningRate * dy];
+        }
+
+        function runGradientDescent(startX, startY) {
+            convexPath = [[startX, startY]];
+            let [x, y] = [startX, startY];
+            
+            const maxIter = 100;
+            for (let i = 0; i < maxIter; i++) {
+                [x, y] = gradientDescentStep(x, y, 0.05);
+                convexPath.push([x, y]);
+                
+                if (Math.abs(x) < 0.001 && Math.abs(y) < 0.001) break;
+            }
+            
+            animateConvexPath();
+        }
+
+        function animateConvexPath() {
+            let frame = 0;
+            const animate = () => {
+                if (frame < convexPath.length) {
+                    drawConvexFunction();
+                    frame++;
+                    requestAnimationFrame(animate);
+                }
+            };
+            animate();
+        }
+
+        convexCanvas.addEventListener('click', (e) => {
+            const rect = convexCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const scale = 40;
+            const centerX = convexCanvas.width / 2;
+            const centerY = convexCanvas.height / 2;
+            
+            const worldX = (x - centerX) / scale;
+            const worldY = (y - centerY) / scale;
+            
+            runGradientDescent(worldX, worldY);
+        });
+
+        function resetConvex() {
+            convexPath = [];
+            drawConvexFunction();
+        }
+
+        function randomStartConvex() {
+            const x = (Math.random() - 0.5) * 6;
+            const y = (Math.random() - 0.5) * 6;
+            runGradientDescent(x, y);
+        }
+
+        // Canvas 2: Biconvex Visualization
+        const biconvexCanvas = document.getElementById('biconvexCanvas');
+        const biconvexCtx = biconvexCanvas.getContext('2d');
+        let biconvexPath = [];
+        let biconvexStep = 0;
+
+        function setupBiconvexCanvas() {
+            biconvexCanvas.width = 800;
+            biconvexCanvas.height = 400;
+            drawBiconvexFunction();
+        }
+
+        function drawBiconvexFunction() {
+            const ctx = biconvexCtx;
+            const w = biconvexCanvas.width;
+            const h = biconvexCanvas.height;
+
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, w, h);
+
+            const scale = 60;
+            const centerX = w / 2;
+            const centerY = h / 2;
+
+            // Draw contour map (saddle shape)
+            for (let x = -w/2; x < w/2; x += 20) {
+                for (let y = -h/2; y < h/2; y += 20) {
+                    const wx = x / scale;
+                    const wy = y / scale;
+                    const val = biconvexFunc(wx, wy);
+                    
+                    const color = val > 0 ? 
+                        `rgba(231, 76, 60, ${Math.min(val * 0.1, 0.3)})` :
+                        `rgba(52, 152, 219, ${Math.min(-val * 0.1, 0.3)})`;
+                    
+                    ctx.fillStyle = color;
+                    ctx.fillRect(centerX + x, centerY + y, 20, 20);
+                }
+            }
+
+            // Draw saddle point
+            ctx.fillStyle = '#f39c12';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw path
+            if (biconvexPath.length > 0) {
+                ctx.strokeStyle = '#9b59b6';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                
+                for (let i = 0; i < biconvexPath.length; i++) {
+                    const px = centerX + biconvexPath[i][0] * scale;
+                    const py = centerY + biconvexPath[i][1] * scale;
+                    
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // Starting point
+                const start = biconvexPath[0];
+                ctx.fillStyle = '#e74c3c';
+                ctx.beginPath();
+                ctx.arc(centerX + start[0] * scale, centerY + start[1] * scale, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Current point
+                if (biconvexPath.length > 1) {
+                    const curr = biconvexPath[biconvexPath.length - 1];
+                    ctx.fillStyle = '#9b59b6';
+                    ctx.beginPath();
+                    ctx.arc(centerX + curr[0] * scale, centerY + curr[1] * scale, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Axes
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(w, centerY);
+            ctx.moveTo(centerX, 0);
+            ctx.lineTo(centerX, h);
+            ctx.stroke();
+        }
+
+        function alternatingMinStep(x, y) {
+            // Fix y, minimize over x: x* = y/2
+            const newX = y / 2;
+            
+            // Fix x, minimize over y: y* = x/2
+            const newY = newX / 2;
+            
+            return [newX, newY];
+        }
+
+        function runAlternatingMin(startX, startY) {
+            biconvexPath = [[startX, startY]];
+            let [x, y] = [startX, startY];
+            
+            for (let i = 0; i < 20; i++) {
+                // Fix y, minimize x
+                x = y / 2;
+                biconvexPath.push([x, y]);
+                
+                // Fix x, minimize y
+                y = x / 2;
+                biconvexPath.push([x, y]);
+                
+                if (Math.abs(x) < 0.01 && Math.abs(y) < 0.01) break;
+            }
+            
+            biconvexStep = 0;
+            animateBiconvex();
+        }
+
+        function animateBiconvex() {
+            const animate = () => {
+                if (biconvexStep < biconvexPath.length) {
+                    drawBiconvexFunction();
+                    biconvexStep++;
+                    requestAnimationFrame(animate);
+                }
+            };
+            animate();
+        }
+
+        biconvexCanvas.addEventListener('click', (e) => {
+            const rect = biconvexCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const scale = 60;
+            const centerX = biconvexCanvas.width / 2;
+            const centerY = biconvexCanvas.height / 2;
+            
+            const worldX = (x - centerX) / scale;
+            const worldY = (y - centerY) / scale;
+            
+            runAlternatingMin(worldX, worldY);
+        });
+
+        function resetBiconvex() {
+            biconvexPath = [];
+            biconvexStep = 0;
+            drawBiconvexFunction();
+        }
+
+        function randomStartBiconvex() {
+            const x = (Math.random() - 0.5) * 4;
+            const y = (Math.random() - 0.5) * 4;
+            runAlternatingMin(x, y);
+        }
+
+        function stepBiconvex() {
+            if (biconvexPath.length === 0) {
+                randomStartBiconvex();
+            } else if (biconvexStep < biconvexPath.length) {
+                biconvexStep++;
+                drawBiconvexFunction();
+            }
+        }
+
+        // Canvas 3: Matrix Factorization
+        const matrixCanvas = document.getElementById('matrixCanvas');
+        const matrixCtx = matrixCanvas.getContext('2d');
+        let matrixM, matrixU, matrixV;
+        let matrixError = [];
+
+        function setupMatrixCanvas() {
+            matrixCanvas.width = 800;
+            matrixCanvas.height = 400;
+            resetMatrix();
+        }
+
+        function resetMatrix() {
+            // True matrix M (4x4)
+            matrixM = [
+                [5, 3, 0, 1],
+                [4, 0, 0, 1],
+                [1, 1, 0, 5],
+                [1, 0, 0, 4]
+            ];
+            
+            // Initialize U and V randomly (rank 2)
+            matrixU = Array(4).fill(0).map(() => [Math.random(), Math.random()]);
+            matrixV = Array(2).fill(0).map(() => Array(4).fill(0).map(() => Math.random()));
+            
+            matrixError = [];
+            drawMatrix();
+            updateMatrixInfo();
+        }
+
+        function computeUV() {
+            const UV = [];
+            for (let i = 0; i < 4; i++) {
+                UV[i] = [];
+                for (let j = 0; j < 4; j++) {
+                    let sum = 0;
+                    for (let k = 0; k < 2; k++) {
+                        sum += matrixU[i][k] * matrixV[k][j];
+                    }
+                    UV[i][j] = sum;
+                }
+            }
+            return UV;
+        }
+
+        function computeError() {
+            const UV = computeUV();
+            let error = 0;
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    error += Math.pow(matrixM[i][j] - UV[i][j], 2);
+                }
+            }
+            return Math.sqrt(error);
+        }
+
+        function stepMatrix() {
+            // ALS update U (fix V)
+            // Simplified update
+            for (let i = 0; i < 4; i++) {
+                for (let k = 0; k < 2; k++) {
+                    let grad = 0;
+                    for (let j = 0; j < 4; j++) {
+                        let pred = 0;
+                        for (let l = 0; l < 2; l++) {
+                            pred += matrixU[i][l] * matrixV[l][j];
+                        }
+                        grad += (pred - matrixM[i][j]) * matrixV[k][j];
+                    }
+                    matrixU[i][k] -= 0.01 * grad;
+                }
+            }
+            
+            // ALS update V (fix U)
+            for (let k = 0; k < 2; k++) {
+                for (let j = 0; j < 4; j++) {
+                    let grad = 0;
+                    for (let i = 0; i < 4; i++) {
+                        let pred = 0;
+                        for (let l = 0; l < 2; l++) {
+                            pred += matrixU[i][l] * matrixV[l][j];
+                        }
+                        grad += (pred - matrixM[i][j]) * matrixU[i][k];
+                    }
+                    matrixV[k][j] -= 0.01 * grad;
+                }
+            }
+            
+            matrixError.push(computeError());
+            drawMatrix();
+            updateMatrixInfo();
+        }
+
+        function runMatrix() {
+            for (let i = 0; i < 10; i++) {
+                stepMatrix();
+            }
+        }
+
+        function drawMatrix() {
+            const ctx = matrixCtx;
+            const w = matrixCanvas.width;
+            const h = matrixCanvas.height;
+
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, w, h);
+
+            const cellSize = 60;
+            const startX = 50;
+            const startY = 50;
+
+            // Draw M
+            ctx.font = '12px JetBrains Mono';
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillText('M (Original)', startX, startY - 10);
+            
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    const val = matrixM[i][j];
+                    ctx.fillStyle = `rgb(${255 - val * 25}, ${255 - val * 25}, 255)`;
+                    ctx.fillRect(startX + j * cellSize, startY + i * cellSize, cellSize - 2, cellSize - 2);
+                    
+                    ctx.fillStyle = '#000';
+                    ctx.font = '16px JetBrains Mono';
+                    ctx.fillText(val.toFixed(0), startX + j * cellSize + 20, startY + i * cellSize + 35);
+                }
+            }
+
+            // Draw UV
+            const uvStartX = startX + 300;
+            ctx.font = '12px JetBrains Mono';
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillText('UV (Approximation)', uvStartX, startY - 10);
+            
+            const UV = computeUV();
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    const val = UV[i][j];
+                    ctx.fillStyle = `rgb(${255 - val * 25}, ${255 - val * 25}, 255)`;
+                    ctx.fillRect(uvStartX + j * cellSize, startY + i * cellSize, cellSize - 2, cellSize - 2);
+                    
+                    ctx.fillStyle = '#000';
+                    ctx.font = '16px JetBrains Mono';
+                    ctx.fillText(val.toFixed(1), uvStartX + j * cellSize + 15, startY + i * cellSize + 35);
+                }
+            }
+
+            // Draw error plot
+            if (matrixError.length > 1) {
+                const plotX = 50;
+                const plotY = 300;
+                const plotW = 700;
+                const plotH = 80;
+
+                ctx.strokeStyle = '#ccc';
+                ctx.strokeRect(plotX, plotY, plotW, plotH);
+
+                ctx.strokeStyle = '#3498db';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                const maxError = Math.max(...matrixError);
+                for (let i = 0; i < matrixError.length; i++) {
+                    const x = plotX + (i / matrixError.length) * plotW;
+                    const y = plotY + plotH - (matrixError[i] / maxError) * plotH;
+                    
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                ctx.fillStyle = '#666';
+                ctx.font = '12px JetBrains Mono';
+                ctx.fillText('Error over iterations', plotX, plotY - 5);
+            }
+        }
+
+        function updateMatrixInfo() {
+            const error = computeError();
+            const info = document.getElementById('matrixInfo');
+            info.innerHTML = `
+                Iteration: ${matrixError.length} | 
+                Current Error: ${error.toFixed(4)} | 
+                Status: ${error < 0.5 ? 'Converging' : 'Optimizing'}
+            `;
+        }
+
+        // Initialize all canvases
+        setupConvexCanvas();
+        setupBiconvexCanvas();
+        setupMatrixCanvas();
+    </script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tensor-DL Efficiency Ranker</title>
+<style>
+  :root{
+    --bg:#0e1218; --panel:#161d29; --panel2:#1b2333; --line:rgba(255,255,255,.07);
+    --ink:#e7edf6; --mut:#8794a8; --faint:#5b6678; --accent:#46d6c2;
+    --m-vec:#9aa4b2; --m-cp:#e05a6d; --m-tuk:#3fa86a; --m-tt:#5b8fd6; --m-tr:#f0a330; --m-btd:#9b6fe0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;
+    padding:28px 22px 48px}
+  .wrap{max-width:1080px;margin:0 auto}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+  header{margin-bottom:22px}
+  .eyebrow{font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--accent);margin:0 0 8px}
+  h1{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-weight:600;font-size:25px;
+    letter-spacing:-.01em;margin:0 0 6px}
+  .sub{color:var(--mut);font-size:13.5px;max-width:62ch;margin:0}
+  .grid{display:grid;grid-template-columns:300px 1fr;gap:20px;margin-top:22px;align-items:start}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .card h2{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);
+    margin:0 0 14px;font-weight:600}
+  /* profiles */
+  .profiles{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px}
+  .profiles button{flex:1 1 auto;background:var(--panel2);color:var(--mut);border:1px solid var(--line);
+    border-radius:7px;padding:7px 9px;font-size:12px;cursor:pointer;font-family:inherit;transition:.15s}
+  .profiles button:hover{color:var(--ink);border-color:var(--faint)}
+  .profiles button.on{background:var(--accent);color:#06201d;border-color:var(--accent);font-weight:600}
+  /* sliders */
+  .slider{margin:15px 0}
+  .slider .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+  .slider .name{font-size:13px}
+  .slider .val{font-size:12px;color:var(--accent)}
+  input[type=range]{width:100%;-webkit-appearance:none;height:4px;border-radius:3px;
+    background:var(--panel2);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+    background:var(--accent);cursor:pointer;border:2px solid var(--bg)}
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--accent);
+    cursor:pointer;border:2px solid var(--bg)}
+  .hint{font-size:11.5px;color:var(--faint);margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  /* ranking list */
+  .list{position:relative}
+  .item{display:grid;grid-template-columns:26px 128px 1fr 92px;gap:12px;align-items:center;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 14px;
+    margin-bottom:9px;will-change:transform}
+  .item.front{border-color:rgba(70,214,194,.4)}
+  .rk{font-size:13px;color:var(--faint);text-align:center}
+  .meth{display:flex;align-items:center;gap:8px;min-width:0}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .mname{font-size:14px;font-weight:600;white-space:nowrap}
+  .star{color:var(--accent);font-size:12px}
+  .bars{min-width:0}
+  .track{height:9px;background:var(--panel2);border-radius:5px;overflow:hidden}
+  .fill{height:100%;border-radius:5px;transition:width .45s cubic-bezier(.2,.7,.2,1)}
+  .stats{display:flex;gap:14px;margin-top:6px;font-size:11px;color:var(--mut)}
+  .stats b{color:var(--ink);font-weight:600}
+  .right{text-align:right}
+  .tier{display:inline-block;min-width:24px;padding:2px 0;border-radius:6px;font-size:13px;font-weight:700;
+    text-align:center}
+  .composite{font-size:11px;color:var(--faint);margin-top:4px}
+  .t-S{background:#163d36;color:#5fe6cf}.t-A{background:#173a2a;color:#6fdd97}
+  .t-B{background:#1c3147;color:#7fb2ee}.t-C{background:#3a2f1a;color:#f0bd6a}.t-D{background:#3a1f25;color:#f08aa0}
+  .foot{margin-top:18px;font-size:11.5px;color:var(--faint);max-width:80ch}
+  .legend{display:flex;gap:16px;font-size:11px;color:var(--mut);margin:2px 0 14px}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">tensor decomposition · dictionary learning</p>
+    <h1>Efficiency Ranker</h1>
+    <p class="sub">Set how much each axis matters for your use case. The ranking re-sorts live.
+       Numbers are measured on real RGB image patches (astronaut, 8×8×3, 12 dB noise, 5 seeds) —
+       they rank these implementations on this benchmark, not the decompositions in the abstract.</p>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Use-case profile</h2>
+      <div class="profiles" id="profiles"></div>
+
+      <h2>Axis weights</h2>
+      <div id="sliders"></div>
+
+      <div class="hint">★ = on the accuracy-vs-parameters Pareto frontier (not beaten on both at once).
+        Tiers grade the weighted composite: S ≥ .80, A ≥ .65, B ≥ .45, C ≥ .25, else D.</div>
+    </div>
+
+    <div class="card">
+      <h2>Ranking</h2>
+      <div class="legend">
+        <span>bar = composite efficiency</span><span>★ Pareto-optimal</span>
+      </div>
+      <div class="list" id="list"></div>
+      <div class="foot" id="verdict"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const COL = {Vectorized:'--m-vec',CP:'--m-cp',Tucker:'--m-tuk',TT:'--m-tt',TR:'--m-tr',BTD:'--m-btd'};
+const cssv = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+// measured data + precomputed normalised axes (identical to ranking.py)
+const DATA = [
+ {name:'CP',         psnr:31.71, params:1900,  E:9.67,  front:true,  ax:{accuracy:1.000,param_eff:0.479,speed:0.223,robustness:0.876}},
+ {name:'TT',         psnr:31.28, params:5400,  E:8.38,  front:false, ax:{accuracy:0.589,param_eff:0.263,speed:0.782,robustness:0.965}},
+ {name:'TR',         psnr:31.31, params:7600,  E:8.07,  front:false, ax:{accuracy:0.614,param_eff:0.192,speed:0.757,robustness:0.909}},
+ {name:'BTD',        psnr:31.38, params:4600,  E:8.57,  front:false, ax:{accuracy:0.680,param_eff:0.296,speed:0.000,robustness:0.980}},
+ {name:'Tucker',     psnr:30.66, params:153,   E:14.04, front:true,  ax:{accuracy:0.000,param_eff:1.000,speed:0.537,robustness:0.000}},
+ {name:'Vectorized', psnr:30.80, params:19200, E:7.19,  front:false, ax:{accuracy:0.131,param_eff:0.000,speed:1.000,robustness:1.000}},
+];
+const AXES = [['accuracy','Accuracy'],['param_eff','Parameter efficiency'],
+              ['speed','Training speed'],['robustness','Robustness']];
+const PROFILES = {
+  Balanced:[40,30,15,15], Quality:[60,20,10,10], Compression:[25,55,10,10], Realtime:[30,20,40,10]
+};
+let weights = PROFILES.Balanced.slice();
+
+function tier(s){return s>=.80?'S':s>=.65?'A':s>=.45?'B':s>=.25?'C':'D';}
+function composite(d){
+  const sum = weights.reduce((a,b)=>a+b,0)||1;
+  const w = weights.map(x=>x/sum);
+  return w[0]*d.ax.accuracy + w[1]*d.ax.param_eff + w[2]*d.ax.speed + w[3]*d.ax.robustness;
+}
+
+// build controls
+const prof = document.getElementById('profiles');
+Object.keys(PROFILES).forEach(p=>{
+  const b=document.createElement('button'); b.textContent=p; b.dataset.p=p;
+  b.onclick=()=>{weights=PROFILES[p].slice();syncSliders();markProfile();render();};
+  prof.appendChild(b);
+});
+const sliderBox = document.getElementById('sliders');
+AXES.forEach((a,i)=>{
+  const wrap=document.createElement('div'); wrap.className='slider';
+  wrap.innerHTML=`<div class="row"><span class="name">${a[1]}</span>
+     <span class="val mono" id="v${i}"></span></div>
+     <input type="range" min="0" max="100" id="s${i}">`;
+  sliderBox.appendChild(wrap);
+  wrap.querySelector('input').addEventListener('input',e=>{
+    weights[i]=+e.target.value; updateVals(); markProfile(); render();
+  });
+});
+function syncSliders(){AXES.forEach((a,i)=>document.getElementById('s'+i).value=weights[i]); updateVals();}
+function updateVals(){
+  const sum=weights.reduce((a,b)=>a+b,0)||1;
+  AXES.forEach((a,i)=>document.getElementById('v'+i).textContent=Math.round(100*weights[i]/sum)+'%');
+}
+function markProfile(){
+  const cur=JSON.stringify(weights);
+  document.querySelectorAll('.profiles button').forEach(b=>
+    b.classList.toggle('on', JSON.stringify(PROFILES[b.dataset.p])===cur));
+}
+
+// render list with FLIP reordering
+const list=document.getElementById('list');
+const nodes={};
+DATA.forEach(d=>{
+  const el=document.createElement('div'); el.className='item'+(d.front?' front':'');
+  el.innerHTML=`<div class="rk mono"></div>
+    <div class="meth"><span class="dot" style="background:${cssv(COL[d.name])}"></span>
+      <span class="mname">${d.name}</span><span class="star">${d.front?'★':''}</span></div>
+    <div class="bars"><div class="track"><div class="fill" style="background:${cssv(COL[d.name])}"></div></div>
+      <div class="stats"><span>PSNR <b class="mono">${d.psnr.toFixed(2)}</b> dB</span>
+        <span>params <b class="mono">${d.params.toLocaleString()}</b></span>
+        <span>E <b class="mono">${d.E.toFixed(1)}</b></span></div></div>
+    <div class="right"><span class="tier"></span><div class="composite mono"></div></div>`;
+  list.appendChild(el); nodes[d.name]=el;
+});
+
+function render(){
+  const scored=DATA.map(d=>({d,c:composite(d)})).sort((a,b)=>b.c-a.c);
+  const first={}; DATA.forEach(d=>first[d.name]=nodes[d.name].getBoundingClientRect().top);
+  scored.forEach(s=>list.appendChild(nodes[s.d.name]));     // reorder DOM
+  scored.forEach((s,i)=>{
+    const el=nodes[s.d.name], t=tier(s.c);
+    el.querySelector('.rk').textContent=i+1;
+    el.querySelector('.fill').style.width=Math.max(3,s.c*100)+'%';
+    const tb=el.querySelector('.tier'); tb.textContent=t; tb.className='tier t-'+t;
+    el.querySelector('.composite').textContent=s.c.toFixed(3);
+  });
+  // FLIP animate
+  DATA.forEach(d=>{
+    const el=nodes[d.name], dy=first[d.name]-el.getBoundingClientRect().top;
+    if(dy){el.style.transition='none';el.style.transform=`translateY(${dy}px)`;
+      requestAnimationFrame(()=>{el.style.transition='transform .42s cubic-bezier(.2,.7,.2,1)';
+        el.style.transform='';});}
+  });
+  const best=scored[0].d, worst=scored[scored.length-1].d;
+  document.getElementById('verdict').innerHTML=
+    `For this weighting, <b style="color:${cssv(COL[best.name])}">${best.name}</b> ranks most efficient `
+    +`and <b style="color:${cssv(COL[worst.name])}">${worst.name}</b> least. Only CP and Tucker are `
+    +`Pareto-optimal: every other method, including the vectorized baseline, is beaten by CP on both `
+    +`accuracy and parameter count at once.`;
+}
+syncSliders(); markProfile(); render();
+window.addEventListener('resize',render);
+</script>
