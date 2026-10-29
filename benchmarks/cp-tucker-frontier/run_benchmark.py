@@ -16,10 +16,14 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+import sys as _sys, os as _os
+_SRC_DL = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                        "..", "..", "src", "dictionary_learning")
+_sys.path.insert(0, _os.path.normpath(_SRC_DL))
 from data import make_dataset
 from tensor_dl import make_model, psnr
 
-OUT = "/home/claude/outputs"
+OUT = os.environ.get("TDL_OUT", os.path.join(os.path.dirname(os.path.abspath(__file__)), "results"))
 os.makedirs(OUT, exist_ok=True)
 
 # ----- global style -----

@@ -63,6 +63,14 @@ def make_dataset(atom_shape=(6, 6, 6), n_true=24, n_train=320, n_test=90,
         noisy = clean + rng.standard_normal(clean.shape) * np.sqrt(noise_pow)
         return clean, noisy
 
+    train_clean, train_noisy = synth(n_train)
+    test_clean, test_noisy = synth(n_test)
+    return dict(train_clean=train_clean, train_noisy=train_noisy,
+                test_clean=test_clean, test_noisy=test_noisy,
+                true_atoms=atoms, atom_shape=atom_shape,
+                snr_db=snr_db, s_true=s_true, mix=mix)
+
+
 def make_image_dataset(image="astronaut", patch=(8, 8, 3), n_train=320, n_test=90,
                        snr_db=12.0, seed=0):
     """Real RGB-image patches as 3rd-order tensors (spatial x spatial x colour).
@@ -91,6 +99,12 @@ def make_image_dataset(image="astronaut", patch=(8, 8, 3), n_train=320, n_test=9
     sig_pow = np.mean(clean ** 2)
     noise_pow = sig_pow / (10 ** (snr_db / 10))
     noisy = clean + rng.standard_normal(clean.shape) * np.sqrt(noise_pow)
+
+    a = n_train
+    return dict(train_clean=clean[:a], train_noisy=noisy[:a],
+                test_clean=clean[a:], test_noisy=noisy[a:],
+                atom_shape=patch, snr_db=snr_db, image=image)
+
 
 def make_hsi_dataset(patch=(6, 6, 16), n_endmembers=5, img=(72, 72),
                      n_train=300, n_val=100, n_test=100, snr_db=12.0, seed=0):

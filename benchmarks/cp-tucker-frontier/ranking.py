@@ -39,10 +39,14 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+import sys as _sys, os as _os
+_SRC_DL = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                        "..", "..", "src", "dictionary_learning")
+_sys.path.insert(0, _os.path.normpath(_SRC_DL))
 from data import make_image_dataset
 from tensor_dl import make_model, psnr
 
-OUT = "/home/claude/outputs"
+OUT = os.environ.get("TDL_OUT", os.path.join(os.path.dirname(os.path.abspath(__file__)), "results"))
 SHAPE, NA, ENCODE_S, SEEDS = (8, 8, 3), 100, 6, [0, 1, 2, 3, 4]
 COLORS = {"Vectorized": "#444444", "CP": "#d1495b", "Tucker": "#2e8b57",
           "TT": "#3b6fb6", "TR": "#e08e0b", "BTD": "#7b4fb6"}

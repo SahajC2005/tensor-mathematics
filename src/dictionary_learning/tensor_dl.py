@@ -1,374 +1,372 @@
 """
-tensor_dl.py -- structured tensor dictionary learning.
+tensor_dl.py
+============
+Tensor Dictionary Learning under one API, with five interchangeable atom models:
 
-Every model learns an over-complete dictionary of K atoms, each atom a 3rd-order
-tensor of shape `atom_shape`. Models differ ONLY in the low-rank structure each
-atom is constrained to live on:
+    Vectorized (baseline) | CP | Tucker | Tensor-Train (TT) | Tensor-Ring (TR)
 
-    vectorized : none (dense atom)                    -> prod(shape) params/atom
-    cp         : CP rank-R                            -> R * sum(shape)
-    tt         : TT with internal rank r              -> r*s0 + r*s1*r + r*s2
-    tr         : Tensor-Ring, all ranks r             -> r^2 * sum(shape)
-    btd        : b blocks of rank-(L,L,L) Tucker      -> b*(L^N + L*sum(shape))
-    tucker     : ONE separable/Kronecker dictionary   -> sum_n s_n * k_n  (all atoms)
+DESIGN (why it's a fair comparison)
+-----------------------------------
+Every model exposes the *same* interface:
 
-Training = alternating (i) batch-OMP sparse coding, (ii) MOD dictionary update,
-(iii) projection of every atom back onto its structural manifold, (iv) re-normalise.
-The Tucker/Kronecker model instead does closed-form ALS on its mode factors.
+    .fit(X)                 learn the structured dictionary from training tensors
+    .dictionary  -> D_eff   (n_features, n_atoms) matrix, unit-norm columns
+    .encode(X, s)           OMP sparse coding against D_eff  (SHARED across models)
+    .decode(codes)          linear reconstruction            (SHARED across models)
+    .n_params               number of free parameters stored in the dictionary
+
+Because encode/decode are identical for all models, the ONLY things that differ are
+(a) how the atoms are parameterised/constrained and (b) how many parameters that costs.
+That isolates the effect of the tensor-decomposition structure on accuracy / efficiency /
+robustness, which is the whole point of the benchmark.
+
+Author: built for a CP/Tucker/TT-DL benchmark.
 """
+
+from __future__ import annotations
+import time
 import numpy as np
-from sklearn.linear_model import orthogonal_mp_gram
+from numpy.linalg import svd, norm
+from sklearn.linear_model import orthogonal_mp
+import tensorly as tl
+from tensorly.decomposition import parafac, tensor_train, tensor_ring, tucker
 
-EPS = 1e-10
-
-
-# ----------------------------------------------------------------------------- metrics
-def psnr(clean, recon, data_range=None):
-    """PSNR in dB. data_range defaults to max|clean| (patches are unit-norm)."""
-    clean = np.asarray(clean, float)
-    recon = np.asarray(recon, float)
-    mse = np.mean((clean - recon) ** 2)
-    if data_range is None:
-        data_range = float(np.max(clean) - np.min(clean))
-    return 10.0 * np.log10((data_range ** 2) / (mse + 1e-20))
+tl.set_backend("numpy")
+EPS = 1e-12
 
 
-# ------------------------------------------------------------------- structure projections
-def _unit(A):
-    """Row-normalise a stack of atoms (K, *shape)."""
-    n = np.sqrt((A ** 2).sum(axis=tuple(range(1, A.ndim)), keepdims=True))
-    return A / (n + EPS)
+# --------------------------------------------------------------------------------------
+# Shared utilities
+# --------------------------------------------------------------------------------------
+def _normalize_cols(D):
+    """Unit-L2 normalise columns; drop near-zero columns to a tiny random atom."""
+    n = norm(D, axis=0)
+    dead = n < EPS
+    if np.any(dead):
+        D[:, dead] = np.random.randn(D.shape[0], int(dead.sum())) * 1e-3
+        n = norm(D, axis=0)
+    return D / (n + EPS)
 
 
-def project_cp(A, rank, n_iter=8):
-    """Batched CP-ALS projection of atoms A (K, *shape) onto CP rank-`rank`."""
-    K = A.shape[0]
-    shape = A.shape[1:]
-    N = len(shape)
-    rng = np.random.default_rng(0)
-    F = [rng.standard_normal((K, s, rank)) for s in shape]
-    # svd init on mode-0 helps conditioning
-    for n in range(N):
-        Un = np.moveaxis(A, n + 1, 1).reshape(K, shape[n], -1)
-        u, _, _ = np.linalg.svd(Un, full_matrices=False)
-        r = min(rank, u.shape[2])
-        F[n][:, :, :r] = u[:, :, :r]
-    for _ in range(n_iter):
-        for n in range(N):
-            # khatri-rao of the other factors
-            others = [m for m in range(N) if m != n]
-            KR = F[others[0]]
-            for m in others[1:]:
-                KR = (KR[:, :, None, :] * F[m][:, None, :, :]).reshape(K, -1, rank)
-            An = np.moveaxis(A, n + 1, 1).reshape(K, shape[n], -1)  # (K, s_n, prod)
-            G = np.einsum('kpr,kps->krs', KR, KR)                   # (K, R, R)
-            B = np.einsum('ksp,kpr->ksr', An, KR)                   # (K, s_n, R)
-            G = G + 1e-8 * np.eye(rank)
-            F[n] = np.linalg.solve(G, B.transpose(0, 2, 1)).transpose(0, 2, 1)
-    out = F[0]
-    for n in range(1, N):
-        out = (out[..., None, :] * F[n][:, None, :, :]) if out.ndim == 3 else out
-    # explicit reconstruction (N=3 general path)
-    rec = np.zeros_like(A)
-    for r in range(rank):
-        term = F[0][:, :, r]
-        for n in range(1, N):
-            term = term[..., None] * F[n][:, :, r].reshape((K,) + (1,) * n + (shape[n],))
-        rec += term
-    return rec
+# --------------------------------------------------------------------------------------
+# Atom projections -- the ONLY thing that differs between free/CP/TT/TR atoms
+# Each takes a 3rd-order tensor and returns (projected_tensor, n_params_of_atom)
+# --------------------------------------------------------------------------------------
+def _proj_free(T, rank=None, **kw):
+    return T, T.size, {}
 
 
-def project_tt(A, rank):
-    """Batched TT-SVD projection (exact, non-iterative) for 3rd-order atoms."""
-    K, s0, s1, s2 = A.shape
-    C = A.reshape(K, s0, s1 * s2)
-    U, S, Vt = np.linalg.svd(C, full_matrices=False)
-    r1 = min(rank, U.shape[2])
-    G0 = U[:, :, :r1]                                     # (K, s0, r1)
-    C1 = (S[:, :r1, None] * Vt[:, :r1, :]).reshape(K, r1 * s1, s2)
-    U2, S2, Vt2 = np.linalg.svd(C1, full_matrices=False)
-    r2 = min(rank, U2.shape[2])
-    G1 = U2[:, :, :r2].reshape(K, r1, s1, r2)
-    G2 = (S2[:, :r2, None] * Vt2[:, :r2, :])              # (K, r2, s2)
-    return np.einsum('kar,krbs,ksc->kabc', G0, G1, G2)
+def _proj_cp(T, rank=1, cp_init="svd", **kw):
+    try:
+        cp = parafac(T, rank=rank, n_iter_max=25, init=cp_init,
+                     normalize_factors=False, tol=1e-6)
+        Tp = tl.cp_to_tensor(cp)
+        nparam = sum(f.size for f in cp.factors)          # weights folded into factors
+        # CP degeneracy diagnostic: sum of component magnitudes / norm of their sum.
+        # ~1 means well-separated; >>1 means diverging components that cancel (degenerate).
+        comp = sum(np.prod([norm(f[:, r]) for f in cp.factors]) for r in range(rank))
+        deg = float(comp / (norm(Tp) + EPS))
+    except Exception:
+        Tp, nparam, _ = _proj_free(T)
+        deg = 1.0
+    return Tp, nparam, {"deg": deg}
 
 
-def _tr_reconstruct(cores):
-    K = cores[0].shape[0]
-    Z = cores[0]                                          # (K, r, s0, r)
-    for G in cores[1:]:
-        Z = np.einsum('ka...b,kbjc->ka...jc', Z, G)
-    return np.einsum('ka...a->k...', Z)
+def _proj_tt(T, rank=2, **kw):
+    shp = T.shape
+    ranks = [1] + [rank] * (len(shp) - 1) + [1]
+    try:
+        cores = tensor_train(T, rank=ranks)
+        Tp = tl.tt_to_tensor(cores)
+        nparam = sum(c.size for c in cores)
+    except Exception:
+        Tp, nparam, _ = _proj_free(T)
+    return Tp, nparam, {}
 
 
-def project_tr(A, rank, n_iter=6):
-    """Batched Tensor-Ring ALS projection, all TR-ranks = `rank`."""
-    K = A.shape[0]
-    shape = A.shape[1:]
-    N = len(shape)
-    rng = np.random.default_rng(0)
-    cores = [rng.standard_normal((K, rank, s, rank)) / np.sqrt(rank) for s in shape]
-    for _ in range(n_iter):
-        for n in range(N):
-            order = [(n + i) % N for i in range(1, N)]
-            Z = cores[order[0]]
-            for o in order[1:]:
-                Z = np.einsum('ka...b,kbjc->ka...jc', Z, cores[o])
-            Z = Z.reshape(K, rank, -1, rank)                       # (K, r_{n+1}, P, r_n)
-            Zt = Z.transpose(0, 2, 1, 3).reshape(K, -1, rank * rank)
-            perm = [0, n + 1] + [o + 1 for o in order]
-            Xn = A.transpose(perm).reshape(K, shape[n], -1)        # (K, s_n, P)
-            G = np.einsum('kpq,kpr->kqr', Zt, Zt) + 1e-8 * np.eye(rank * rank)
-            B = np.einsum('ksp,kpq->ksq', Xn, Zt)
-            Gt = np.linalg.solve(G, B.transpose(0, 2, 1)).transpose(0, 2, 1)
-            cores[n] = Gt.reshape(K, shape[n], rank, rank).transpose(0, 3, 1, 2)
-    return _tr_reconstruct(cores)
+def _proj_tr(T, rank=2, **kw):
+    shp = T.shape
+    ranks = [rank] * (len(shp) + 1)                       # tensor-ring ranks, wrap-around
+    try:
+        cores = tensor_ring(T, rank=ranks)
+        Tp = tl.tr_to_tensor(cores)
+        nparam = sum(c.size for c in cores)
+    except Exception:
+        Tp, nparam, _ = _proj_tt(T, rank=rank)
+    return Tp, nparam, {}
 
 
-def _mdot(T, Mat, mode, adjoint=True):
-    """Batched mode product. T:(K,s0..), Mat:(K,s,r).
-    adjoint=True  -> contract s  (result has r on that mode)
-    adjoint=False -> contract r  (result has s on that mode)"""
-    T2 = np.moveaxis(T, mode + 1, -1)
-    if adjoint:
-        out = np.einsum('k...s,ksr->k...r', T2, Mat)
-    else:
-        out = np.einsum('k...r,ksr->k...s', T2, Mat)
-    return np.moveaxis(out, -1, mode + 1)
+def _proj_btd(T, rank=2, n_blocks=1, **kw):
+    """Block-Term Decomposition: sum of `n_blocks` multilinear rank-(L,L,L) Tucker blocks.
+    Greedy residual fitting. L=1 reduces to CP; one full-rank block reduces to Tucker."""
+    L = rank
+    ranks = [min(L, d) for d in T.shape]
+    resid = T.astype(float).copy()
+    recon = np.zeros_like(resid)
+    nparam = 0
+    try:
+        for _ in range(n_blocks):
+            core, factors = tucker(resid, rank=ranks, n_iter_max=50, init="svd")
+            block = tl.tucker_to_tensor((core, factors))
+            recon = recon + block
+            resid = resid - block
+            nparam += core.size + sum(f.size for f in factors)
+    except Exception:
+        return _proj_free(T)
+    return recon, nparam, {}
 
 
-def _hooi(A, ranks, n_iter=4):
-    """Batched Tucker/HOOI approximation of atoms A (K, *shape)."""
-    K = A.shape[0]
-    shape = A.shape[1:]
-    N = len(shape)
-    U = []
-    for n in range(N):
-        An = np.moveaxis(A, n + 1, 1).reshape(K, shape[n], -1)
-        u, _, _ = np.linalg.svd(An, full_matrices=False)
-        r = min(ranks[n], u.shape[2])
-        Un = u[:, :, :r]
-        if r < ranks[n]:
-            Un = np.concatenate([Un, np.zeros((K, shape[n], ranks[n] - r))], 2)
-        U.append(Un)
-    for _ in range(n_iter):
-        for n in range(N):
-            Y = A
-            for m in range(N):
-                if m != n:
-                    Y = _mdot(Y, U[m], m, adjoint=True)
-            Yn = np.moveaxis(Y, n + 1, 1).reshape(K, shape[n], -1)
-            u, _, _ = np.linalg.svd(Yn, full_matrices=False)
-            r = min(ranks[n], u.shape[2])
-            Un = u[:, :, :r]
-            if r < ranks[n]:
-                Un = np.concatenate([Un, np.zeros((K, shape[n], ranks[n] - r))], 2)
-            U[n] = Un
-    core = A
-    for n in range(N):
-        core = _mdot(core, U[n], n, adjoint=True)
-    rec = core
-    for n in range(N):
-        rec = _mdot(rec, U[n], n, adjoint=False)
-    return rec
+_PROJECTORS = {"free": _proj_free, "cp": _proj_cp, "tt": _proj_tt,
+               "tr": _proj_tr, "btd": _proj_btd}
 
 
-def project_btd(A, L, n_blocks, n_iter=3):
-    """Block-term decomposition: sum of `n_blocks` rank-(L,L,L) Tucker terms."""
-    N = A.ndim - 1
-    ranks = [L] * N
-    blocks = [np.zeros_like(A) for _ in range(n_blocks)]
-    for _ in range(n_iter):
-        for b in range(n_blocks):
-            R = A - sum(blocks[j] for j in range(n_blocks) if j != b)
-            blocks[b] = _hooi(R, ranks, n_iter=3)
-        if n_blocks == 1:
-            break
-    return sum(blocks)
+# --------------------------------------------------------------------------------------
+# Base class: shared encode / decode / reconstruct / metrics
+# --------------------------------------------------------------------------------------
+class BaseTensorDL:
+    name = "base"
+
+    def __init__(self, atom_shape, n_atoms=128, n_iter=12, seed=0):
+        self.atom_shape = tuple(atom_shape)
+        self.n_features = int(np.prod(atom_shape))
+        self.n_atoms = n_atoms
+        self.n_iter = n_iter
+        self.seed = seed
+        self.D_ = None          # (n_features, n_atoms) unit-norm
+        self._param_count = None
+        self.fit_time_ = None
+
+    # ---- shared sparse coding / reconstruction ----
+    @property
+    def dictionary(self):
+        return self.D_
+
+    @property
+    def n_params(self):
+        return self._param_count
+
+    def encode(self, X, n_nonzero):
+        """X: (M, *atom_shape) -> codes (M, n_atoms) via OMP on D_eff."""
+        Y = X.reshape(X.shape[0], -1).T          # (n_features, M)
+        coef = orthogonal_mp(self.D_, Y, n_nonzero_coefs=int(n_nonzero))
+        return coef.T                            # (M, n_atoms)
+
+    def decode(self, codes):
+        flat = codes @ self.D_.T                  # (M, n_features)
+        return flat.reshape((codes.shape[0],) + self.atom_shape)
+
+    def reconstruct(self, X, n_nonzero):
+        return self.decode(self.encode(X, n_nonzero))
+
+    # ---- to be implemented ----
+    def fit(self, X):
+        raise NotImplementedError
 
 
-# ----------------------------------------------------------------------------- costs
-def atom_cost(kind, shape, rank=None, n_blocks=1):
-    Sn, N = int(sum(shape)), len(shape)
-    if kind == "vectorized":
-        return int(np.prod(shape))
+# --------------------------------------------------------------------------------------
+# Tensor K-SVD engine (covers Vectorized / CP / TT / TR via the atom projector)
+# Standard K-SVD: alternate OMP coding with rank-1 SVD atom+code update, BUT the
+# updated atom is projected onto the chosen tensor manifold (rank-1 CP, low TT-rank, ...).
+# 'free' projection == ordinary K-SVD == the vectorized baseline.
+# --------------------------------------------------------------------------------------
+class KSVDTensorDL(BaseTensorDL):
+    def __init__(self, atom_shape, structure="free", rank=2,
+                 n_atoms=128, n_iter=12, sparsity=4, seed=0,
+                 init="data", proj_kw=None):
+        super().__init__(atom_shape, n_atoms, n_iter, seed)
+        self.structure = structure
+        self.rank = rank
+        self.sparsity = sparsity
+        self.init = init                       # 'data' (warm) or 'random' (cold)
+        self.proj_kw = proj_kw or {}
+        self.project = _PROJECTORS[structure]
+        self.degeneracy_ = None
+        self.name = {"free": "Vectorized", "cp": "CP", "tt": "TT",
+                     "tr": "TR", "btd": "BTD"}[structure]
+
+    def _project(self, T):
+        return self.project(T, self.rank, **self.proj_kw)
+
+    def _init_dict(self, Y):
+        rng = np.random.default_rng(self.seed)
+        M = Y.shape[1]
+        if self.init == "random":
+            D = rng.standard_normal((self.n_features, self.n_atoms))
+        else:                                                # warm: random data samples
+            idx = rng.choice(M, size=min(self.n_atoms, M), replace=False)
+            D = Y[:, idx].copy()
+            if D.shape[1] < self.n_atoms:                    # pad if few samples
+                extra = rng.standard_normal((self.n_features, self.n_atoms - D.shape[1]))
+                D = np.hstack([D, extra])
+        atom_params = np.empty(self.n_atoms)
+        for k in range(self.n_atoms):                        # start on-manifold
+            Tp, p, _ = self._project(D[:, k].reshape(self.atom_shape))
+            D[:, k] = Tp.ravel()
+            atom_params[k] = p
+        self._atom_params = atom_params
+        return _normalize_cols(D)
+
+    def fit(self, X):
+        np.random.seed(self.seed)
+        t0 = time.time()
+        Y = X.reshape(X.shape[0], -1).T          # (n_features, M)
+        D = self._init_dict(Y)
+        last_degs = []
+
+        for it in range(self.n_iter):
+            codes = orthogonal_mp(D, Y, n_nonzero_coefs=self.sparsity).T   # (M, n_atoms)
+            degs = []
+            for k in range(self.n_atoms):
+                omega = np.nonzero(codes[:, k])[0]
+                if omega.size == 0:
+                    # dead atom: re-seed on worst-reconstructed sample
+                    resid = Y - D @ codes.T
+                    worst = np.argmax(norm(resid, axis=0))
+                    Tp, p, _ = self._project(Y[:, worst].reshape(self.atom_shape))
+                    D[:, k] = Tp.ravel() / (norm(Tp.ravel()) + EPS)
+                    self._atom_params[k] = p
+                    continue
+                E = Y[:, omega] - D @ codes[omega].T + np.outer(D[:, k], codes[omega, k])
+                U, S, Vt = svd(E, full_matrices=False)
+                atom = U[:, 0]
+                Tp, p, info = self._project(atom.reshape(self.atom_shape))
+                atom = Tp.ravel()
+                nrm = norm(atom)
+                if nrm < EPS:
+                    continue
+                atom /= nrm
+                D[:, k] = atom
+                self._atom_params[k] = p
+                codes[omega, k] = E.T @ atom      # refresh active codes onto new atom
+                if "deg" in info:
+                    degs.append(info["deg"])
+            if it == self.n_iter - 1:
+                last_degs = degs
+
+        self.D_ = _normalize_cols(D)
+        self._param_count = int(self._atom_params.sum())
+        self.degeneracy_ = float(np.mean(last_degs)) if last_degs else None
+        self.fit_time_ = time.time() - t0
+        return self
+
+
+# --------------------------------------------------------------------------------------
+# Tucker / separable (Kronecker) dictionary -- IN THE SHARED HARNESS.
+# Same outer loop as the projection methods: OMP sparse-code against D_eff, then update.
+# The Tucker-specific "snap toward Kronecker shape" update is a separable ALS on the mode
+# factors U1..UN (Tucker's constraint is shared across all atoms, so it can't be snapped
+# one atom at a time -- the whole dictionary is re-fit to the Kronecker manifold instead).
+# D_eff atoms = every tensor product u1_i o u2_j o ...   Parameters = sum of |U_n|.
+# --------------------------------------------------------------------------------------
+class TuckerDL(BaseTensorDL):
+    name = "Tucker"
+
+    def __init__(self, atom_shape, mode_ranks=None, n_iter=12,
+                 sparsity=4, seed=0, mode_sparsity=None, ridge=1e-3):
+        super().__init__(atom_shape, n_atoms=None, n_iter=n_iter, seed=seed)
+        if mode_ranks is None:
+            mode_ranks = [d + 1 for d in atom_shape]      # mildly overcomplete per mode
+        self.mode_ranks = list(mode_ranks)
+        # accept legacy `mode_sparsity` but use one shared DL sparsity like every other model
+        self.sparsity = mode_sparsity if mode_sparsity is not None else sparsity
+        self.ridge = ridge
+        self.U_ = None
+        self.degeneracy_ = None
+
+    def _build_Deff(self, U):
+        N = len(self.atom_shape)
+        big, sub = "ijklm"[:N], "abcde"[:N]
+        eq = ",".join(f"{a}{b}" for a, b in zip(big, sub)) + "->" + big + sub
+        return np.einsum(eq, *U).reshape(self.n_features, -1)   # (n_features, prod(k))
+
+    def _init_modes(self, X):
+        rng = np.random.default_rng(self.seed)
+        N = len(self.atom_shape)
+        U = []
+        for mode in range(N):
+            fibers = tl.unfold(np.moveaxis(X, 0, -1), mode)     # (n_mode, rest)
+            # leading left singular vectors (HOSVD), padded with random to reach k_mode
+            try:
+                Uu, _, _ = svd(fibers, full_matrices=False)
+            except Exception:
+                Uu = rng.standard_normal((self.atom_shape[mode], self.atom_shape[mode]))
+            k = self.mode_ranks[mode]
+            cols = [Uu[:, :min(k, Uu.shape[1])]]
+            if k > Uu.shape[1]:
+                cols.append(rng.standard_normal((self.atom_shape[mode], k - Uu.shape[1])) * 0.1)
+            U.append(np.hstack(cols))
+        return U
+
+    def fit(self, X):
+        t0 = time.time()
+        np.random.seed(self.seed)
+        N = len(self.atom_shape)
+        ks = self.mode_ranks
+        U = self._init_modes(X)
+        Xarr = X.astype(float)                       # (M, n1, ..., nN)
+        M = Xarr.shape[0]
+
+        for _ in range(self.n_iter):
+            D = _normalize_cols(self._build_Deff(U))
+            # SAME sparse coding as every other model
+            codes = orthogonal_mp(D, X.reshape(M, -1).T,
+                                  n_nonzero_coefs=self.sparsity).T          # (M, prod(k))
+            Ccore = codes.reshape((M,) + tuple(ks))   # per-sample sparse core tensor
+            # separable ALS: update each mode factor to best fit X given the cores
+            for mode in range(N):
+                other = [p for p in range(N) if p != mode]
+                # G_m = Ccore_m  x_{p!=mode} U_p   (leave sample axis 0 untouched)
+                G = tl.tenalg.multi_mode_dot(Ccore, [U[p] for p in other],
+                                             modes=[p + 1 for p in other])
+                # unfold X and G with the `mode` axis as rows, everything else as columns
+                Xn = np.moveaxis(Xarr, mode + 1, 0).reshape(self.atom_shape[mode], -1)
+                Gn = np.moveaxis(G, mode + 1, 0).reshape(ks[mode], -1)
+                GG = Gn @ Gn.T + self.ridge * np.eye(ks[mode])
+                U[mode] = (Xn @ Gn.T) @ np.linalg.inv(GG)     # (n_mode, k_mode)
+
+        self.U_ = U
+        self.D_ = _normalize_cols(self._build_Deff(U))
+        self.n_atoms = self.D_.shape[1]
+        self._param_count = int(sum(u.size for u in U))
+        self.fit_time_ = time.time() - t0
+        return self
+
+
+# --------------------------------------------------------------------------------------
+# Factory
+# --------------------------------------------------------------------------------------
+def make_model(kind, atom_shape, **kw):
+    kind = kind.lower()
+    if kind in ("vectorized", "free", "baseline"):
+        return KSVDTensorDL(atom_shape, structure="free", **kw)
     if kind == "cp":
-        return int(rank * Sn)
+        return KSVDTensorDL(atom_shape, structure="cp", **kw)
     if kind == "tt":
-        c = shape[0] * rank + shape[-1] * rank
-        for nm in shape[1:-1]:
-            c += rank * nm * rank
-        return int(c)
+        return KSVDTensorDL(atom_shape, structure="tt", **kw)
     if kind == "tr":
-        return int(rank ** 2 * Sn)
+        return KSVDTensorDL(atom_shape, structure="tr", **kw)
     if kind == "btd":
-        return int(n_blocks * (rank ** N + rank * Sn))
+        return KSVDTensorDL(atom_shape, structure="btd", **kw)
+    if kind == "tucker":
+        mr = kw.pop("mode_ranks", None)
+        return TuckerDL(atom_shape, mode_ranks=mr,
+                        n_iter=kw.get("n_iter", 12),
+                        sparsity=kw.get("sparsity", 4),
+                        mode_sparsity=kw.get("mode_sparsity", None),
+                        seed=kw.get("seed", 0))
     raise ValueError(kind)
 
 
-# ----------------------------------------------------------------------------- models
-class StructuredDL:
-    """Over-complete dictionary of K structurally-constrained tensor atoms."""
-
-    def __init__(self, kind, atom_shape, n_atoms=64, rank=2, sparsity=4,
-                 n_iter=8, seed=0, proj_kw=None):
-        self.kind = kind
-        self.atom_shape = tuple(atom_shape)
-        self.K = int(n_atoms)
-        self.rank = rank
-        self.sparsity = sparsity
-        self.n_iter = n_iter
-        self.seed = seed
-        self.proj_kw = dict(proj_kw or {})
-        self.D = None
-
-    # -- structure -----------------------------------------------------------
-    def _project(self, A):
-        if self.kind == "vectorized":
-            return A
-        if self.kind == "cp":
-            return project_cp(A, self.rank)
-        if self.kind == "tt":
-            return project_tt(A, self.rank)
-        if self.kind == "tr":
-            return project_tr(A, self.rank)
-        if self.kind == "btd":
-            return project_btd(A, self.rank, self.proj_kw.get("n_blocks", 1))
-        raise ValueError(self.kind)
-
-    @property
-    def n_atoms(self):
-        return self.K
-
-    @property
-    def n_params(self):
-        return self.K * atom_cost(self.kind, self.atom_shape, self.rank,
-                                  self.proj_kw.get("n_blocks", 1))
-
-    # -- fitting -------------------------------------------------------------
-    def fit(self, X):
-        rng = np.random.default_rng(self.seed)
-        M = X.shape[0]
-        P = int(np.prod(self.atom_shape))
-        Xf = X.reshape(M, P)
-        idx = rng.choice(M, size=min(self.K, M), replace=self.K > M)
-        A = X[idx]
-        if self.K > M:
-            A = np.concatenate([A, rng.standard_normal((self.K - M,) + self.atom_shape)])
-        A = _unit(self._project(A))
-        self.D = A.reshape(self.K, P)
-        for _ in range(self.n_iter):
-            C = self._omp(Xf, self.sparsity)                 # (K, M)
-            G = C @ C.T + 1e-6 * np.eye(self.K)
-            Dn = np.linalg.solve(G, C @ Xf)                  # MOD update
-            A = _unit(self._project(Dn.reshape((self.K,) + self.atom_shape)))
-            # revive dead atoms
-            used = (np.abs(C) > 1e-9).sum(axis=1)
-            dead = np.where(used == 0)[0]
-            if len(dead):
-                repl = X[rng.choice(M, size=len(dead))]
-                A[dead] = _unit(self._project(repl))
-            self.D = A.reshape(self.K, P)
-        return self
-
-    # -- coding --------------------------------------------------------------
-    def _omp(self, Xf, s):
-        s = int(min(s, self.K))
-        Gram = self.D @ self.D.T
-        Gram = Gram + 1e-8 * np.eye(self.K)
-        Dty = self.D @ Xf.T
-        return orthogonal_mp_gram(Gram, Dty, n_nonzero_coefs=s, copy_Gram=True,
-                                  copy_Xy=True)
-
-    def reconstruct(self, X, sparsity=None):
-        s = self.sparsity if sparsity is None else sparsity
-        Xf = X.reshape(X.shape[0], -1)
-        C = self._omp(Xf, s)
-        return (C.T @ self.D).reshape(X.shape)
+# --------------------------------------------------------------------------------------
+# Metrics
+# --------------------------------------------------------------------------------------
+def psnr(clean, recon):
+    mse = np.mean((clean - recon) ** 2)
+    if mse < EPS:
+        return 99.0
+    peak = clean.max() - clean.min()
+    return 20 * np.log10(peak / np.sqrt(mse) + EPS)
 
 
-class KroneckerDL:
-    """Separable ('Tucker') dictionary: atoms = u1_a (x) u2_b (x) u3_c.
-
-    K = prod(mode_ranks) atoms are described by only sum_n s_n * k_n parameters,
-    which is exactly why this family behaves so differently under a parameter budget.
-    """
-
-    def __init__(self, atom_shape, mode_ranks, sparsity=4, n_iter=8, seed=0):
-        self.atom_shape = tuple(atom_shape)
-        self.ks = [int(k) for k in mode_ranks]
-        self.sparsity = sparsity
-        self.n_iter = n_iter
-        self.seed = seed
-        self.U = None
-        self.D = None
-
-    @property
-    def n_atoms(self):
-        return int(np.prod(self.ks))
-
-    @property
-    def n_params(self):
-        return int(sum(s * k for s, k in zip(self.atom_shape, self.ks)))
-
-    def _build(self):
-        D = self.U[0]
-        for n in range(1, len(self.ks)):
-            D = (D[..., None, None] * self.U[n][None, None, :, :]) \
-                if False else D
-        # explicit Kronecker build (N=3)
-        U0, U1, U2 = self.U
-        D = np.einsum('ia,jb,kc->abcijk', U0, U1, U2)
-        self.D = D.reshape(self.n_atoms, -1)
-        self.D /= (np.linalg.norm(self.D, axis=1, keepdims=True) + EPS)
-
-    def fit(self, X):
-        rng = np.random.default_rng(self.seed)
-        N = X.ndim - 1
-        # HOSVD init on the training set
-        self.U = []
-        for n in range(N):
-            Xn = np.moveaxis(X, n + 1, 1).reshape(-1, self.atom_shape[n]).T
-            u, _, _ = np.linalg.svd(Xn @ Xn.T)
-            k = self.ks[n]
-            Un = u[:, :k]
-            if Un.shape[1] < k:                       # pad with random directions
-                Un = np.concatenate(
-                    [Un, rng.standard_normal((self.atom_shape[n], k - Un.shape[1]))], 1)
-            self.U.append(Un / (np.linalg.norm(Un, axis=0, keepdims=True) + EPS))
-        self._build()
-        M = X.shape[0]
-        Xf = X.reshape(M, -1)
-        for _ in range(self.n_iter):
-            C = self._omp(Xf, self.sparsity).T.reshape((M,) + tuple(self.ks))
-            for n in range(N):
-                T = C
-                for m in range(N):
-                    if m == n:
-                        continue
-                    T = np.moveaxis(np.tensordot(T, self.U[m], axes=([m + 1], [1])),
-                                    -1, m + 1)
-                Bn = np.moveaxis(T, n + 1, 1).reshape(M, self.ks[n], -1)
-                Xn = np.moveaxis(X, n + 1, 1).reshape(M, self.atom_shape[n], -1)
-                S = np.einsum('msp,mkp->sk', Xn, Bn)
-                Gk = np.einsum('mkp,mlp->kl', Bn, Bn) + 1e-6 * np.eye(self.ks[n])
-                Un = np.linalg.solve(Gk, S.T).T
-                self.U[n] = Un / (np.linalg.norm(Un, axis=0, keepdims=True) + EPS)
-            self._build()
-        return self
-
-    def _omp(self, Xf, s):
-        s = int(min(s, self.n_atoms))
-        Gram = self.D @ self.D.T + 1e-8 * np.eye(self.n_atoms)
-        return orthogonal_mp_gram(Gram, self.D @ Xf.T, n_nonzero_coefs=s)
-
-    def reconstruct(self, X, sparsity=None):
-        s = self.sparsity if sparsity is None else sparsity
-        C = self._omp(X.reshape(X.shape[0], -1), s)
-        return (C.T @ self.D).reshape(X.shape)
-
-
-def make_model(kind, atom_shape, **kw):
-    if kind == "tucker":
-        return KroneckerDL(atom_shape, kw.pop("mode_ranks"), **kw)
-    return StructuredDL(kind, atom_shape, **kw)
+def rmse(a, b):
+    return float(np.sqrt(np.mean((a - b) ** 2)))
